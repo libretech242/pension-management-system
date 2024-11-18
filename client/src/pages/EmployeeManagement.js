@@ -1,15 +1,13 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Container,
+  Typography,
   Paper,
-  TextField,
   Select,
   MenuItem,
   FormControl,
   InputLabel,
-  Button,
   Grid,
-  Typography,
 } from '@mui/material';
 import { DataGrid } from '@mui/x-data-grid';
 import axios from 'axios';
@@ -37,7 +35,7 @@ const EmployeeManagement = () => {
     },
   ];
 
-  const fetchEmployees = async () => {
+  const fetchEmployees = useCallback(async () => {
     try {
       setLoading(true);
       const params = new URLSearchParams();
@@ -51,11 +49,11 @@ const EmployeeManagement = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [filters]);
 
   useEffect(() => {
     fetchEmployees();
-  }, [filters]);
+  }, [fetchEmployees]);
 
   const handleFilterChange = (event) => {
     const { name, value } = event.target;
