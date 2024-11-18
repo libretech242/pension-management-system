@@ -56,3 +56,5 @@ client/node_modules/
 
 # Server build
 dist/
+
+.vercel
