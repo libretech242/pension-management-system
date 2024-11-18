@@ -1,5 +1,5 @@
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route, Navigate } from 'react-router-dom';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
 
@@ -44,18 +44,16 @@ function App() {
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
-      <Router>
-        <div className="App">
-          <Navigation />
-          <Routes>
-            <Route path="/" element={<Navigate to="/dashboard" replace />} />
-            <Route path="/dashboard" element={<Dashboard />} />
-            <Route path="/employees" element={<EmployeeManagement />} />
-            <Route path="/payroll" element={<PensionManagement />} />
-            <Route path="/reports" element={<Reports />} />
-          </Routes>
-        </div>
-      </Router>
+      <div className="App">
+        <Navigation />
+        <Routes>
+          <Route path="/" element={<Navigate to="/dashboard" replace />} />
+          <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/employees" element={<EmployeeManagement />} />
+          <Route path="/payroll" element={<PensionManagement />} />
+          <Route path="/reports" element={<Reports />} />
+        </Routes>
+      </div>
     </ThemeProvider>
   );
 }
