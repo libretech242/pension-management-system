@@ -55,7 +55,7 @@ function PensionManagement() {
       setSuccess('');
       setUploadProgress(0);
 
-      const uploadResult = await axios.post('/api/pension/upload', formData, {
+      const response = await axios.post('/api/pension/upload', formData, {
         headers: {
           'Content-Type': 'multipart/form-data',
         },
@@ -66,7 +66,6 @@ function PensionManagement() {
           setUploadProgress(progress);
         },
       });
-
       setSuccess('File uploaded and processed successfully!');
       setFile(null);
       // Reset file input
