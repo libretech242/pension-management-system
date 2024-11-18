@@ -1,0 +1,81 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "3001:3001"
+    environment:
+      - NODE_ENV=production
+      - DB_HOST=db
+      - DB_PORT=5432
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_NAME=${DB_NAME}
+      - JWT_SECRET=${JWT_SECRET}
+    depends_on:
+      - db
+    volumes:
+      - ./logs:/app/logs
+      - ./uploads:/app/uploads
+    restart: unless-stopped
+    networks:
+      - pension-net
+
+  frontend:
+    build:
+      context: ./client
+      dockerfile: Dockerfile
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
+    networks:
+      - pension-net
+
+  db:
+    image: postgres:14-alpine
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_USER=${DB_USER}
+      - POSTGRES_PASSWORD=${DB_PASSWORD}
+      - POSTGRES_DB=${DB_NAME}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./src/db/init.sql:/docker-entrypoint-initdb.d/init.sql
+    restart: unless-stopped
+    networks:
+      - pension-net
+
+  backup:
+    image: postgres:14-alpine
+    volumes:
+      - ./backups:/backups
+      - postgres_data:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_USER=${DB_USER}
+      - POSTGRES_PASSWORD=${DB_PASSWORD}
+      - POSTGRES_DB=${DB_NAME}
+    entrypoint: |
+      /bin/sh -c '
+        while true; do
+          pg_dump -h db -U $$POSTGRES_USER $$POSTGRES_DB > /backups/backup_$$(date +%Y%m%d_%H%M%S).sql
+          find /backups -type f -mtime +7 -delete
+          sleep 86400
+        done
+      '
+    depends_on:
+      - db
+    networks:
+      - pension-net
+
+volumes:
+  postgres_data:
+
+networks:
+  pension-net:
+    driver: bridge
