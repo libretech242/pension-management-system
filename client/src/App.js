@@ -1,60 +1,70 @@
 import React from 'react';
-import { Routes, Route, Navigate } from 'react-router-dom';
-import { ThemeProvider, createTheme } from '@mui/material/styles';
-import CssBaseline from '@mui/material/CssBaseline';
-
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { AuthProvider } from './contexts/AuthContext';
+import ProtectedRoute from './components/ProtectedRoute';
 import Navigation from './components/Navigation';
+import Sidebar from './components/Sidebar';
 import Dashboard from './pages/Dashboard';
-import EmployeeManagement from './pages/EmployeeManagement';
+import Employees from './pages/Employees';
 import PensionManagement from './pages/PensionManagement';
 import Reports from './pages/Reports';
-
-const theme = createTheme({
-  palette: {
-    primary: {
-      main: '#1976d2',
-    },
-    secondary: {
-      main: '#dc004e',
-    },
-    background: {
-      default: '#f5f5f5',
-    },
-  },
-  typography: {
-    h4: {
-      fontWeight: 600,
-    },
-    h6: {
-      fontWeight: 600,
-    },
-  },
-  components: {
-    MuiCard: {
-      styleOverrides: {
-        root: {
-          boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-        },
-      },
-    },
-  },
-});
+import Settings from './pages/Settings';
+import Login from './pages/Login';
+import Register from './pages/Register';
+import NotFound from './pages/NotFound';
+import Landing from './pages/Landing';
+import './styles/App.css';
 
 function App() {
+  const location = useLocation();
+  const isPublicRoute = ['/', '/login', '/register'].includes(location.pathname);
+
   return (
-    <ThemeProvider theme={theme}>
-      <CssBaseline />
-      <div className="App">
-        <Navigation />
+    <AuthProvider>
+      <div className={`app ${isPublicRoute ? 'public-route' : ''}`}>
         <Routes>
-          <Route path="/" element={<Navigate to="/dashboard" replace />} />
-          <Route path="/dashboard" element={<Dashboard />} />
-          <Route path="/employees" element={<EmployeeManagement />} />
-          <Route path="/payroll" element={<PensionManagement />} />
-          <Route path="/reports" element={<Reports />} />
+          {/* Public Routes */}
+          <Route path="/" element={<Landing />} />
+          <Route path="/login" element={<Login />} />
+          <Route path="/register" element={<Register />} />
+
+          {/* Protected Routes */}
+          <Route
+            path="/dashboard/*"
+            element={
+              <ProtectedRoute>
+                <div className="dashboard-layout">
+                  <Sidebar />
+                  <div className="main-content">
+                    <Navigation />
+                    <div className="page-content">
+                      <Routes>
+                        <Route index element={<Dashboard />} />
+                        <Route path="employees" element={<Employees />} />
+                        <Route path="pension-management" element={<PensionManagement />} />
+                        <Route path="reports" element={<Reports />} />
+                        <Route 
+                          path="settings" 
+                          element={
+                            <ProtectedRoute requiredRole="admin">
+                              <Settings />
+                            </ProtectedRoute>
+                          } 
+                        />
+                        <Route path="*" element={<NotFound />} />
+                      </Routes>
+                    </div>
+                  </div>
+                </div>
+              </ProtectedRoute>
+            }
+          />
+
+          {/* Catch-all route */}
+          <Route path="*" element={<NotFound />} />
         </Routes>
       </div>
-    </ThemeProvider>
+    </AuthProvider>
   );
 }
 

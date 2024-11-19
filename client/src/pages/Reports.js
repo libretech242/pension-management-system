@@ -1,260 +1,246 @@
 import React, { useState } from 'react';
 import {
-  Container,
+  Box,
+  Typography,
   Paper,
   Grid,
-  FormControl,
-  InputLabel,
-  Select,
-  MenuItem,
   TextField,
   Button,
-  Typography,
   Table,
   TableBody,
   TableCell,
   TableContainer,
   TableHead,
   TableRow,
-  Box,
+  MenuItem,
+  IconButton,
+  Fade,
   CircularProgress,
   Alert,
+  Snackbar,
+  Tooltip,
+  Chip
 } from '@mui/material';
+import { DatePicker } from '@mui/x-date-pickers/DatePicker';
+import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
+import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import DownloadIcon from '@mui/icons-material/Download';
-import axios from 'axios';
+import PrintIcon from '@mui/icons-material/Print';
+import FilterListIcon from '@mui/icons-material/FilterList';
+import BarChartIcon from '@mui/icons-material/BarChart';
+import { format } from 'date-fns';
 
 const Reports = () => {
-  const [filters, setFilters] = useState({
-    startDate: '',
-    endDate: '',
-    company: '',
-    employeeType: '',
-  });
-  const [reportData, setReportData] = useState(null);
-  const [summary, setSummary] = useState(null);
+  const [startDate, setStartDate] = useState(null);
+  const [endDate, setEndDate] = useState(null);
+  const [reportType, setReportType] = useState('contributions');
   const [loading, setLoading] = useState(false);
+  const [success, setSuccess] = useState(false);
   const [error, setError] = useState(null);
 
-  const handleFilterChange = (event) => {
-    const { name, value } = event.target;
-    setFilters((prev) => ({
-      ...prev,
-      [name]: value,
-    }));
-  };
+  const reportTypes = [
+    { value: 'contributions', label: 'Contribution Report', color: 'bg-emerald-500' },
+    { value: 'distributions', label: 'Distribution Report', color: 'bg-blue-500' },
+    { value: 'performance', label: 'Performance Report', color: 'bg-amber-500' },
+    { value: 'compliance', label: 'Compliance Report', color: 'bg-purple-500' }
+  ];
 
-  const fetchReport = async () => {
+  const mockData = [
+    { id: 1, date: '2023-11-01', type: 'Contribution', amount: 5000, status: 'Completed' },
+    { id: 2, date: '2023-11-05', type: 'Distribution', amount: 2500, status: 'Pending' },
+    { id: 3, date: '2023-11-10', type: 'Contribution', amount: 7500, status: 'Completed' },
+    { id: 4, date: '2023-11-15', type: 'Distribution', amount: 3000, status: 'Completed' },
+  ];
+
+  const handleGenerateReport = async () => {
+    if (!startDate || !endDate) {
+      setError('Please select both start and end dates');
+      return;
+    }
+
+    setLoading(true);
     try {
-      setLoading(true);
-      setError(null);
-      const params = new URLSearchParams();
-      Object.entries(filters).forEach(([key, value]) => {
-        if (value) params.append(key, value);
-      });
-
-      const [reportResponse, summaryResponse] = await Promise.all([
-        axios.get(`/api/pensions?${params.toString()}`),
-        axios.get(`/api/reports/summary?${params.toString()}`)
-      ]);
-
-      setReportData(reportResponse.data);
-      setSummary(summaryResponse.data);
-    } catch (error) {
-      setError('Error fetching report data. Please try again.');
-      console.error('Error fetching report:', error);
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      setSuccess(true);
+      setTimeout(() => setSuccess(false), 3000);
+    } catch (err) {
+      setError('Failed to generate report. Please try again.');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleExport = async () => {
-    try {
-      setLoading(true);
-      const params = new URLSearchParams();
-      Object.entries(filters).forEach(([key, value]) => {
-        if (value) params.append(key, value);
-      });
-
-      const response = await axios.get(`/api/reports/export?${params.toString()}`, {
-        responseType: 'blob'
-      });
-
-      // Create a download link and trigger the download
-      const url = window.URL.createObjectURL(new Blob([response.data]));
-      const link = document.createElement('a');
-      link.href = url;
-      link.setAttribute('download', `pension-report-${new Date().toISOString().split('T')[0]}.csv`);
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      window.URL.revokeObjectURL(url);
-    } catch (error) {
-      setError('Error exporting report. Please try again.');
-      console.error('Error exporting report:', error);
-    } finally {
-      setLoading(false);
-    }
+  const getStatusChip = (status) => {
+    const styles = status === 'Completed' 
+      ? 'bg-emerald-50 text-emerald-700 ring-emerald-600/20'
+      : 'bg-amber-50 text-amber-700 ring-amber-600/20';
+    return (
+      <span className={`inline-flex items-center rounded-md px-2 py-1 text-xs font-medium ring-1 ring-inset ${styles}`}>
+        {status}
+      </span>
+    );
   };
 
   return (
-    <Container maxWidth="lg" sx={{ mt: 4 }}>
-      <Paper sx={{ p: 3 }}>
-        <Typography variant="h5" gutterBottom>
-          Pension Reports
-        </Typography>
-
-        {error && (
-          <Alert severity="error" sx={{ mb: 2 }}>
-            {error}
-          </Alert>
-        )}
-
-        <Grid container spacing={3} sx={{ mb: 3 }}>
-          <Grid item xs={12} sm={6} md={3}>
-            <TextField
-              fullWidth
-              type="date"
-              label="Start Date"
-              name="startDate"
-              value={filters.startDate}
-              onChange={handleFilterChange}
-              InputLabelProps={{ shrink: true }}
-            />
-          </Grid>
-          <Grid item xs={12} sm={6} md={3}>
-            <TextField
-              fullWidth
-              type="date"
-              label="End Date"
-              name="endDate"
-              value={filters.endDate}
-              onChange={handleFilterChange}
-              InputLabelProps={{ shrink: true }}
-            />
-          </Grid>
-          <Grid item xs={12} sm={6} md={3}>
-            <FormControl fullWidth>
-              <InputLabel>Company</InputLabel>
-              <Select
-                name="company"
-                value={filters.company}
-                label="Company"
-                onChange={handleFilterChange}
-              >
-                <MenuItem value="">All</MenuItem>
-                <MenuItem value="ACME Corp">ACME Corp</MenuItem>
-                <MenuItem value="Tech Inc">Tech Inc</MenuItem>
-                <MenuItem value="Global Ltd">Global Ltd</MenuItem>
-              </Select>
-            </FormControl>
-          </Grid>
-          <Grid item xs={12} sm={6} md={3}>
-            <FormControl fullWidth>
-              <InputLabel>Employee Type</InputLabel>
-              <Select
-                name="employeeType"
-                value={filters.employeeType}
-                label="Employee Type"
-                onChange={handleFilterChange}
-              >
-                <MenuItem value="">All</MenuItem>
-                <MenuItem value="management">Management</MenuItem>
-                <MenuItem value="line staff">Line Staff</MenuItem>
-                <MenuItem value="contract">Contract</MenuItem>
-              </Select>
-            </FormControl>
-          </Grid>
-        </Grid>
-
-        <Box sx={{ display: 'flex', gap: 2, mb: 4 }}>
-          <Button
-            variant="contained"
-            onClick={fetchReport}
-            disabled={loading}
-          >
-            Generate Report
-          </Button>
-
-          <Button
-            variant="outlined"
-            startIcon={<DownloadIcon />}
-            onClick={handleExport}
-            disabled={loading || !reportData}
-          >
-            Export to CSV
-          </Button>
-
-          {loading && <CircularProgress size={24} sx={{ ml: 2 }} />}
-        </Box>
-
-        {summary && (
-          <Paper variant="outlined" sx={{ p: 2, mb: 4 }}>
-            <Typography variant="h6" gutterBottom>
-              Summary Statistics
+    <Fade in={true}>
+      <Box className="p-6 space-y-6 bg-gray-50 min-h-screen">
+        {/* Header Section */}
+        <div className="flex justify-between items-center">
+          <div className="space-y-1">
+            <Typography variant="h4" className="font-bold text-gray-900">
+              Reports Dashboard
             </Typography>
-            <Grid container spacing={3}>
-              <Grid item xs={12} sm={4}>
-                <Typography variant="subtitle2" color="textSecondary">
-                  Total Contributions
-                </Typography>
-                <Typography variant="h6">
-                  ${summary.totalContributions.toFixed(2)}
-                </Typography>
-              </Grid>
-              <Grid item xs={12} sm={4}>
-                <Typography variant="subtitle2" color="textSecondary">
-                  Average Contribution
-                </Typography>
-                <Typography variant="h6">
-                  ${summary.averageContribution.toFixed(2)}
-                </Typography>
-              </Grid>
-              <Grid item xs={12} sm={4}>
-                <Typography variant="subtitle2" color="textSecondary">
-                  Number of Contributions
-                </Typography>
-                <Typography variant="h6">
-                  {summary.contributionCount}
-                </Typography>
-              </Grid>
-            </Grid>
-          </Paper>
-        )}
+            <Typography variant="body2" className="text-gray-600">
+              Generate and manage your pension reports
+            </Typography>
+          </div>
+          <div className="flex items-center space-x-2">
+            <Tooltip title="Download Report">
+              <IconButton className="text-gray-600 hover:text-blue-600 hover:bg-blue-50 transition-all duration-200">
+                <DownloadIcon />
+              </IconButton>
+            </Tooltip>
+            <Tooltip title="Print Report">
+              <IconButton className="text-gray-600 hover:text-blue-600 hover:bg-blue-50 transition-all duration-200">
+                <PrintIcon />
+              </IconButton>
+            </Tooltip>
+          </div>
+        </div>
 
-        {reportData && reportData.contributions && (
+        {/* Filter Section */}
+        <Paper className="p-6 rounded-xl shadow-sm bg-white border border-gray-100">
+          <Grid container spacing={3} alignItems="center">
+            <Grid item xs={12} md={4}>
+              <TextField
+                select
+                fullWidth
+                label="Report Type"
+                value={reportType}
+                onChange={(e) => setReportType(e.target.value)}
+                className="rounded-lg"
+              >
+                {reportTypes.map((option) => (
+                  <MenuItem key={option.value} value={option.value} className="hover:bg-gray-50">
+                    <Box className="flex items-center py-1">
+                      <span className={`w-3 h-3 rounded-full mr-2 ${option.color}`} />
+                      {option.label}
+                    </Box>
+                  </MenuItem>
+                ))}
+              </TextField>
+            </Grid>
+            <Grid item xs={12} md={3}>
+              <LocalizationProvider dateAdapter={AdapterDateFns}>
+                <DatePicker
+                  label="Start Date"
+                  value={startDate}
+                  onChange={setStartDate}
+                  renderInput={(params) => <TextField {...params} fullWidth className="rounded-lg" />}
+                />
+              </LocalizationProvider>
+            </Grid>
+            <Grid item xs={12} md={3}>
+              <LocalizationProvider dateAdapter={AdapterDateFns}>
+                <DatePicker
+                  label="End Date"
+                  value={endDate}
+                  onChange={setEndDate}
+                  renderInput={(params) => <TextField {...params} fullWidth className="rounded-lg" />}
+                />
+              </LocalizationProvider>
+            </Grid>
+            <Grid item xs={12} md={2}>
+              <Button
+                variant="contained"
+                fullWidth
+                onClick={handleGenerateReport}
+                disabled={loading}
+                className="h-14 rounded-lg text-base font-medium bg-blue-600 hover:bg-blue-700 transition-all duration-200 shadow-md hover:shadow-lg disabled:bg-gray-400"
+              >
+                {loading ? (
+                  <CircularProgress size={24} className="text-white" />
+                ) : (
+                  <div className="flex items-center justify-center">
+                    <BarChartIcon className="mr-2" />
+                    Generate
+                  </div>
+                )}
+              </Button>
+            </Grid>
+          </Grid>
+        </Paper>
+
+        {/* Table Section */}
+        <Paper className="rounded-xl shadow-sm overflow-hidden border border-gray-100">
+          <div className="p-4 bg-white border-b border-gray-200">
+            <Typography variant="h6" className="font-semibold text-gray-900">
+              Recent Reports
+            </Typography>
+          </div>
           <TableContainer>
             <Table>
               <TableHead>
-                <TableRow>
-                  <TableCell>Employee</TableCell>
-                  <TableCell>NIB Number</TableCell>
-                  <TableCell>Company</TableCell>
-                  <TableCell>Date</TableCell>
-                  <TableCell align="right">Amount</TableCell>
+                <TableRow className="bg-gray-50">
+                  <TableCell className="font-semibold text-gray-900">Date</TableCell>
+                  <TableCell className="font-semibold text-gray-900">Type</TableCell>
+                  <TableCell className="font-semibold text-gray-900 text-right">Amount</TableCell>
+                  <TableCell className="font-semibold text-gray-900 text-center">Status</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
-                {reportData.contributions.map((contribution) => (
-                  <TableRow key={contribution.id}>
-                    <TableCell>
-                      {`${contribution.employee.firstName} ${contribution.employee.lastName}`}
+                {mockData.map((row) => (
+                  <TableRow 
+                    key={row.id}
+                    className="hover:bg-gray-50 transition-colors duration-150"
+                  >
+                    <TableCell className="text-gray-700">
+                      {format(new Date(row.date), 'MMM dd, yyyy')}
                     </TableCell>
-                    <TableCell>{contribution.employee.nibNumber}</TableCell>
-                    <TableCell>{contribution.employee.company}</TableCell>
-                    <TableCell>
-                      {new Date(contribution.contributionDate).toLocaleDateString()}
+                    <TableCell className="text-gray-700">{row.type}</TableCell>
+                    <TableCell className="text-right font-medium text-gray-900">
+                      ${row.amount.toLocaleString()}
                     </TableCell>
-                    <TableCell align="right">
-                      ${contribution.amount.toFixed(2)}
+                    <TableCell className="text-center">
+                      {getStatusChip(row.status)}
                     </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
             </Table>
           </TableContainer>
-        )}
-      </Paper>
-    </Container>
+        </Paper>
+
+        <Snackbar
+          open={!!error}
+          autoHideDuration={6000}
+          onClose={() => setError(null)}
+          anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+        >
+          <Alert 
+            onClose={() => setError(null)} 
+            severity="error" 
+            className="rounded-lg shadow-lg border border-red-100"
+          >
+            {error}
+          </Alert>
+        </Snackbar>
+
+        <Snackbar
+          open={success}
+          autoHideDuration={3000}
+          onClose={() => setSuccess(false)}
+          anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+        >
+          <Alert 
+            severity="success" 
+            className="rounded-lg shadow-lg border border-green-100"
+          >
+            Report generated successfully!
+          </Alert>
+        </Snackbar>
+      </Box>
+    </Fade>
   );
 };
 

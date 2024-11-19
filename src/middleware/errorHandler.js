@@ -8,7 +8,7 @@ Sentry.init({
   environment: process.env.NODE_ENV,
   integrations: [
     new Sentry.Integrations.Http({ tracing: true }),
-    new Sentry.Integrations.Express({ app }),
+    new Sentry.Integrations.Express(),
     new Sentry.Integrations.Postgres(),
   ],
   tracesSampleRate: process.env.NODE_ENV === 'production' ? 0.2 : 1.0,

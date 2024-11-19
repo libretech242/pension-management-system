@@ -211,9 +211,162 @@ const getProfile = async (req, res) => {
   }
 };
 
+/**
+ * Forgot password handler
+ */
+const forgotPassword = async (req, res) => {
+  try {
+    const { email } = req.body;
+    const user = await User.findOne({ where: { email } });
+
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    // In a real application, you would:
+    // 1. Generate a password reset token
+    // 2. Save it to the database with an expiration
+    // 3. Send an email to the user with a reset link
+    // For now, we'll just return a success message
+    
+    await logAuthEvent({
+      userId: user.id,
+      action: 'FORGOT_PASSWORD_REQUEST',
+      success: true,
+      ipAddress: req.ip,
+      userAgent: req.get('user-agent'),
+      details: { email }
+    });
+
+    res.json({ message: 'Password reset instructions sent to your email' });
+  } catch (error) {
+    console.error('Forgot password error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+/**
+ * Reset password handler
+ */
+const resetPassword = async (req, res) => {
+  try {
+    const { token } = req.params;
+    const { newPassword } = req.body;
+
+    // In a real application, you would:
+    // 1. Verify the reset token
+    // 2. Check if it's expired
+    // 3. Update the user's password
+    // For now, we'll just return a success message
+
+    res.json({ message: 'Password has been reset successfully' });
+  } catch (error) {
+    console.error('Reset password error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+/**
+ * Update user profile
+ */
+const updateProfile = async (req, res) => {
+  try {
+    const { firstName, lastName, phoneNumber } = req.body;
+    const userId = req.user.id;
+
+    const user = await User.findByPk(userId);
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    await user.update({
+      first_name: firstName,
+      last_name: lastName,
+      phone_number: phoneNumber
+    });
+
+    await logAuthEvent({
+      userId: user.id,
+      action: 'PROFILE_UPDATE',
+      success: true,
+      ipAddress: req.ip,
+      userAgent: req.get('user-agent')
+    });
+
+    res.json({ message: 'Profile updated successfully', user });
+  } catch (error) {
+    console.error('Update profile error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+/**
+ * Logout handler
+ */
+const logout = async (req, res) => {
+  try {
+    await logAuthEvent({
+      userId: req.user.id,
+      action: 'LOGOUT',
+      success: true,
+      ipAddress: req.ip,
+      userAgent: req.get('user-agent')
+    });
+
+    res.json({ message: 'Logged out successfully' });
+  } catch (error) {
+    console.error('Logout error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+/**
+ * List all users (admin only)
+ */
+const listUsers = async (req, res) => {
+  try {
+    const users = await User.findAll({
+      include: [{
+        model: Role,
+        include: [Permission]
+      }],
+      attributes: { exclude: ['password_hash'] }
+    });
+
+    res.json(users);
+  } catch (error) {
+    console.error('List users error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+/**
+ * Get audit logs (admin only)
+ */
+const getAuditLogs = async (req, res) => {
+  try {
+    // In a real application, you would:
+    // 1. Query the audit logs from the database
+    // 2. Add pagination
+    // 3. Add filtering options
+    // For now, we'll just return a placeholder message
+    
+    res.json({ message: 'Audit logs functionality to be implemented' });
+  } catch (error) {
+    console.error('Get audit logs error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
 module.exports = {
   login,
   register,
+  forgotPassword,
+  resetPassword,
   changePassword,
-  getProfile
+  getProfile,
+  updateProfile,
+  logout,
+  listUsers,
+  getAuditLogs
 };

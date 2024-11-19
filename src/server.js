@@ -1,17 +1,16 @@
 require('dotenv').config();
-const express = require('express');
-const cors = require('cors');
-const { Sequelize } = require('sequelize');
+const https = require('https');
+const fs = require('fs');
 const winston = require('winston');
-const path = require('path');
-
-// Initialize Express app
-const app = express();
+const app = require('./app');
 
 // Logger configuration
 const logger = winston.createLogger({
-  level: 'info',
-  format: winston.format.json(),
+  level: process.env.LOG_LEVEL || 'info',
+  format: winston.format.combine(
+    winston.format.timestamp(),
+    winston.format.json()
+  ),
   transports: [
     new winston.transports.File({ filename: 'error.log', level: 'error' }),
     new winston.transports.File({ filename: 'combined.log' })
@@ -24,64 +23,48 @@ if (process.env.NODE_ENV !== 'production') {
   }));
 }
 
-// Database configuration
-const sequelize = new Sequelize(process.env.DB_NAME || 'pension_db', 
-                              process.env.DB_USER || 'postgres',
-                              process.env.DB_PASSWORD || 'postgres', {
-  host: process.env.DB_HOST || 'localhost',
-  dialect: 'postgres',
-  logging: (msg) => logger.debug(msg)
-});
+// Use port 5000 for the API server in development
+const PORT = process.env.NODE_ENV === 'production'
+  ? process.env.PORT || 443  // HTTPS by default for production
+  : process.env.PORT || 5000; // Use 5000 in development to avoid conflict with React's 3000
 
-// Middleware
-app.use(cors());
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
-
-// Static files
-app.use(express.static(path.join(__dirname, '../client/build')));
-
-// Routes
-app.use('/api/employees', require('./routes/employeeRoutes'));
-app.use('/api/pension', require('./routes/payrollRoutes'));
-app.use('/api/pensions', require('./routes/pensionRoutes'));
-app.use('/api/reports', require('./routes/reportRoutes'));
-
-// Serve React app
-app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, '../client/build', 'index.html'));
-});
-
-// Basic error handling middleware
-app.use((err, req, res, next) => {
-  logger.error(err.stack);
-  res.status(500).json({ error: 'Something went wrong!' });
-});
-
-// Health check endpoint
-app.get('/health', (req, res) => {
-  res.status(200).json({ status: 'OK' });
-});
-
-const PORT = process.env.PORT || 3000;
-
-// Database connection and server startup
-async function startServer() {
+// Start server with appropriate configuration
+const startServer = async () => {
   try {
-    await sequelize.authenticate();
-    logger.info('Database connection established successfully.');
-    
-    // Sync database models
-    await sequelize.sync({ alter: true });
-    logger.info('Database models synchronized.');
-
-    app.listen(PORT, () => {
-      logger.info(`Server is running on port ${PORT}`);
-    });
+    // In production with HTTPS
+    if (process.env.NODE_ENV === 'production' && !process.env.DISABLE_HTTPS) {
+      const privateKey = fs.readFileSync(process.env.SSL_KEY_PATH, 'utf8');
+      const certificate = fs.readFileSync(process.env.SSL_CERT_PATH, 'utf8');
+      const credentials = { key: privateKey, cert: certificate };
+      
+      https.createServer(credentials, app).listen(PORT, () => {
+        logger.info(`HTTPS Server running on port ${PORT}`);
+        logger.info(`Environment: ${process.env.NODE_ENV}`);
+      });
+    } 
+    // Development or HTTPS disabled
+    else {
+      app.listen(PORT, () => {
+        logger.info(`Server running on port ${PORT}`);
+        logger.info(`Environment: ${process.env.NODE_ENV}`);
+      });
+    }
   } catch (error) {
-    logger.error('Unable to start server:', error);
+    logger.error('Server startup failed:', error);
     process.exit(1);
   }
-}
+};
+
+// Handle uncaught exceptions
+process.on('uncaughtException', (error) => {
+  logger.error('Uncaught Exception:', error);
+  process.exit(1);
+});
+
+// Handle unhandled promise rejections
+process.on('unhandledRejection', (error) => {
+  logger.error('Unhandled Rejection:', error);
+  process.exit(1);
+});
 
 startServer();

@@ -1,3 +1,55 @@
+const { body, validationResult } = require('express-validator');
+
+// Validation middleware for login
+const validateLogin = [
+  body('email').isEmail().withMessage('Please enter a valid email'),
+  body('password').notEmpty().withMessage('Password is required'),
+  (req, res, next) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
+    next();
+  }
+];
+
+// Validation middleware for registration
+const validateRegistration = [
+  body('email').isEmail().withMessage('Please enter a valid email'),
+  body('password')
+    .isLength({ min: 8 })
+    .withMessage('Password must be at least 8 characters long')
+    .matches(/^(?=.*\d)(?=.*[a-z])(?=.*[A-Z])(?=.*[^a-zA-Z0-9])/)
+    .withMessage('Password must include one lowercase letter, one uppercase letter, one number, and one special character'),
+  body('firstName').notEmpty().withMessage('First name is required'),
+  body('lastName').notEmpty().withMessage('Last name is required'),
+  (req, res, next) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
+    next();
+  }
+];
+
+// Validation middleware for password change
+const validatePasswordChange = [
+  body('currentPassword').notEmpty().withMessage('Current password is required'),
+  body('newPassword')
+    .isLength({ min: 8 })
+    .withMessage('New password must be at least 8 characters long')
+    .matches(/^(?=.*\d)(?=.*[a-z])(?=.*[A-Z])(?=.*[^a-zA-Z0-9])/)
+    .withMessage('New password must include one lowercase letter, one uppercase letter, one number, and one special character'),
+  (req, res, next) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
+    next();
+  }
+];
+
+// Validation middleware for employee
 const validateEmployee = (req, res, next) => {
   const { nibNumber, firstName, lastName, position, employeeType, company, contributionPercentage } = req.body;
 
@@ -35,5 +87,8 @@ const validateEmployee = (req, res, next) => {
 };
 
 module.exports = {
+  validateLogin,
+  validateRegistration,
+  validatePasswordChange,
   validateEmployee
 };
