@@ -15,17 +15,19 @@ describe('Pension Management API', () => {
       role: 'admin'
     });
 
-    // Create test employee
+    // Create test employee with all required fields
     testEmployee = await Employee.create({
-      firstName: 'Test',
-      lastName: 'User',
-      nibNumber: 'TEST123',
+      first_name: 'Test',
+      last_name: 'User',
       email: 'test@example.com',
-      employeeType: 'Full-time',
-      company: 'Test Corp',
-      contributionPercentage: 5,
-      status: 'Active',
-      startDate: new Date()
+      date_of_birth: new Date('1990-01-01'),
+      date_of_joining: new Date('2020-01-01'),
+      salary: 50000.00,
+      salary_frequency: 'monthly',
+      department: 'Engineering',
+      position: 'Software Engineer',
+      employee_id: 'EMP001',
+      is_active: true
     });
 
     // Create test contribution
@@ -38,10 +40,10 @@ describe('Pension Management API', () => {
   });
 
   afterAll(async () => {
-    // Cleanup test data
-    await PensionContribution.destroy({ where: {} });
-    await Employee.destroy({ where: {} });
-    await Payroll.destroy({ where: {} });
+    // Cleanup test data with proper syntax
+    await PensionContribution.destroy({ where: {}, force: true });
+    await Employee.destroy({ where: {}, force: true });
+    await Payroll.destroy({ where: {}, force: true });
   });
 
   describe('GET /api/contributions', () => {

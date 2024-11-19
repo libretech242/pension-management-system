@@ -20,16 +20,15 @@ async function createAdminUser() {
     // Admin user credentials
     const adminUser = {
       email: 'admin@pensionpro.com',
-      password: 'Admin@123',
       first_name: 'System',
       last_name: 'Administrator',
-      roleId: adminRole.id,
+      role_id: adminRole.id,
       is_active: true
     };
 
     // Hash password
     const salt = await bcrypt.genSalt(10);
-    const password_hash = await bcrypt.hash(adminUser.password, salt);
+    const password_hash = await bcrypt.hash('Admin@123', salt);
 
     // Create admin user if it doesn't exist
     const [user, created] = await User.findOrCreate({
@@ -43,7 +42,8 @@ async function createAdminUser() {
     if (created) {
       console.log('Admin user created successfully!');
       console.log('Email:', adminUser.email);
-      console.log('Password:', adminUser.password);
+      console.log('Password: Admin@123');
+      console.log('Please change your password after first login');
     } else {
       console.log('Admin user already exists.');
       console.log('Email:', adminUser.email);

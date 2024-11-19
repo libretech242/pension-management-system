@@ -5,11 +5,20 @@ global.TextDecoder = TextDecoder;
 // Load test environment variables
 require('dotenv').config({ path: '.env.test' });
 
-const { sequelize } = require('../src/models');
+const sequelize = require('../src/config/database.test');
 
 beforeAll(async () => {
-  // Sync database and create tables
-  await sequelize.sync({ force: true });
+  try {
+    // Test the database connection
+    await sequelize.authenticate();
+    console.log('Database connection has been established successfully.');
+    
+    // Sync database and create tables
+    await sequelize.sync({ force: true });
+  } catch (error) {
+    console.error('Unable to connect to the database:', error);
+    throw error;
+  }
 });
 
 afterAll(async () => {

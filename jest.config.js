@@ -13,12 +13,24 @@ module.exports = {
 
   // An array of regexp pattern strings that are matched against all source file paths
   transformIgnorePatterns: [
-    'node_modules/(?!(@mui|@material-ui|uuid|sequelize)/)'
+    'node_modules/(?!(@mui|@material-ui|uuid|sequelize|@babel/runtime)/)'
   ],
 
   // A map from regular expressions to paths to transformers
   transform: {
-    '^.+\\.(js|jsx|ts|tsx)$': ['babel-jest', { rootMode: 'upward' }]
+    '^.+\\.(js|jsx|ts|tsx)$': ['babel-jest', { 
+      rootMode: 'upward',
+      presets: [
+        ['@babel/preset-env', {
+          targets: { node: 'current' },
+          modules: 'commonjs'
+        }],
+        ['@babel/preset-react', { runtime: 'automatic' }]
+      ],
+      plugins: [
+        '@babel/plugin-transform-modules-commonjs'
+      ]
+    }]
   },
 
   // The directory where Jest should output its coverage files
@@ -72,5 +84,15 @@ module.exports = {
   moduleNameMapper: {
     '\\.(css|less|scss|sass)$': 'identity-obj-proxy',
     '\\.(jpg|jpeg|png|gif|eot|otf|webp|svg|ttf|woff|woff2|mp4|webm|wav|mp3|m4a|aac|oga)$': '<rootDir>/__mocks__/fileMock.js'
+  },
+
+  // Handle ESM modules
+  extensionsToTreatAsEsm: ['.jsx'],
+  
+  // Babel configuration for ESM
+  globals: {
+    'ts-jest': {
+      useESM: true
+    }
   }
 };

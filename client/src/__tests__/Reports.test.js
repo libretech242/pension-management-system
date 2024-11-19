@@ -1,13 +1,20 @@
 import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { act } from 'react-dom/test-utils';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import Reports from '../pages/Reports';
 import { pensionService } from '../services/pensionService';
 
 // Mock the pension service
-jest.mock('../services/pensionService');
+jest.mock('../services/pensionService', () => ({
+  getReports: jest.fn(),
+  getReportStatistics: jest.fn(),
+  generateReport: jest.fn(),
+  downloadReport: jest.fn(),
+  deleteReport: jest.fn()
+}));
 
 // Mock data for testing
 const mockReports = [
@@ -45,21 +52,33 @@ const renderWithProviders = (component) => {
 
 describe('Reports Component', () => {
   beforeEach(() => {
-    // Reset all mocks before each test
+    // Clear all mocks before each test
     jest.clearAllMocks();
     
     // Setup default mock implementations
     pensionService.getReports.mockResolvedValue(mockReports);
     pensionService.getReportStatistics.mockResolvedValue(mockStatistics);
+    pensionService.generateReport.mockResolvedValue(mockReports[0]);
+    pensionService.downloadReport.mockResolvedValue({ data: 'mock-pdf-data' });
+    pensionService.deleteReport.mockResolvedValue({ success: true });
   });
 
-  it('renders loading state initially', () => {
-    renderWithProviders(<Reports />);
+  afterEach(() => {
+    // Clean up after each test
+    jest.resetAllMocks();
+  });
+
+  it('renders loading state initially', async () => {
+    await act(async () => {
+      renderWithProviders(<Reports />);
+    });
     expect(screen.getByRole('progressbar')).toBeInTheDocument();
   });
 
   it('loads and displays reports data', async () => {
-    renderWithProviders(<Reports />);
+    await act(async () => {
+      renderWithProviders(<Reports />);
+    });
 
     await waitFor(() => {
       expect(screen.getByText('Monthly Contributions')).toBeInTheDocument();
@@ -68,7 +87,9 @@ describe('Reports Component', () => {
   });
 
   it('displays report statistics', async () => {
-    renderWithProviders(<Reports />);
+    await act(async () => {
+      renderWithProviders(<Reports />);
+    });
 
     await waitFor(() => {
       expect(screen.getByText('Total Reports: 10')).toBeInTheDocument();
@@ -88,21 +109,30 @@ describe('Reports Component', () => {
 
     pensionService.generateReport.mockResolvedValue(newReport);
     
-    renderWithProviders(<Reports />);
+    await act(async () => {
+      renderWithProviders(<Reports />);
+    });
 
     // Click generate report button
-    fireEvent.click(screen.getByText('Generate Report'));
+    const generateButton = screen.getByText('Generate Report');
+    
+    await act(async () => {
+      fireEvent.click(generateButton);
+    });
 
     // Fill in the form
+    const reportTypeSelect = screen.getByLabelText('Report Type');
+    
     await act(async () => {
-      // Select report type
-      const reportTypeSelect = screen.getByLabelText('Report Type');
       fireEvent.mouseDown(reportTypeSelect);
       const option = screen.getByText('Custom Report');
       fireEvent.click(option);
+    });
 
-      // Submit form
-      fireEvent.click(screen.getByText('Generate'));
+    const submitButton = screen.getByText('Generate');
+    
+    await act(async () => {
+      fireEvent.click(submitButton);
     });
 
     // Verify API was called
@@ -117,7 +147,9 @@ describe('Reports Component', () => {
   it('handles report download', async () => {
     pensionService.downloadReport.mockResolvedValue({ data: 'mock-pdf-data' });
     
-    renderWithProviders(<Reports />);
+    await act(async () => {
+      renderWithProviders(<Reports />);
+    });
 
     await waitFor(() => {
       expect(screen.getByText('Monthly Contributions')).toBeInTheDocument();
@@ -125,7 +157,11 @@ describe('Reports Component', () => {
 
     // Click download button
     const downloadButtons = screen.getAllByTestId('DownloadIcon');
-    fireEvent.click(downloadButtons[0]);
+    const downloadButton = downloadButtons[0];
+    
+    await act(async () => {
+      fireEvent.click(downloadButton);
+    });
 
     // Verify API was called
     expect(pensionService.downloadReport).toHaveBeenCalledWith(mockReports[0].downloadUrl);
@@ -135,7 +171,9 @@ describe('Reports Component', () => {
     // Mock API error
     pensionService.getReports.mockRejectedValue(new Error('API Error'));
     
-    renderWithProviders(<Reports />);
+    await act(async () => {
+      renderWithProviders(<Reports />);
+    });
 
     // Verify error message
     await waitFor(() => {
@@ -144,7 +182,9 @@ describe('Reports Component', () => {
   });
 
   it('filters reports by date range', async () => {
-    renderWithProviders(<Reports />);
+    await act(async () => {
+      renderWithProviders(<Reports />);
+    });
 
     await waitFor(() => {
       expect(screen.getByText('Monthly Contributions')).toBeInTheDocument();
@@ -154,11 +194,17 @@ describe('Reports Component', () => {
     const startDateInput = screen.getByLabelText('Start Date');
     const endDateInput = screen.getByLabelText('End Date');
 
-    fireEvent.change(startDateInput, { target: { value: '2024-01-01' } });
-    fireEvent.change(endDateInput, { target: { value: '2024-01-31' } });
+    await act(async () => {
+      fireEvent.change(startDateInput, { target: { value: '2024-01-01' } });
+      fireEvent.change(endDateInput, { target: { value: '2024-01-31' } });
+    });
 
     // Click filter button
-    fireEvent.click(screen.getByText('Apply Filter'));
+    const filterButton = screen.getByText('Apply Filter');
+    
+    await act(async () => {
+      fireEvent.click(filterButton);
+    });
 
     // Verify API was called with correct parameters
     expect(pensionService.getReports).toHaveBeenCalledWith({
@@ -170,7 +216,9 @@ describe('Reports Component', () => {
   it('handles report deletion', async () => {
     pensionService.deleteReport.mockResolvedValue({ success: true });
     
-    renderWithProviders(<Reports />);
+    await act(async () => {
+      renderWithProviders(<Reports />);
+    });
 
     await waitFor(() => {
       expect(screen.getByText('Monthly Contributions')).toBeInTheDocument();
@@ -178,10 +226,18 @@ describe('Reports Component', () => {
 
     // Click delete button
     const deleteButtons = screen.getAllByTestId('DeleteIcon');
-    fireEvent.click(deleteButtons[0]);
+    const deleteButton = deleteButtons[0];
+    
+    await act(async () => {
+      fireEvent.click(deleteButton);
+    });
 
     // Confirm deletion
-    fireEvent.click(screen.getByText('Confirm'));
+    const confirmButton = screen.getByText('Confirm');
+    
+    await act(async () => {
+      fireEvent.click(confirmButton);
+    });
 
     // Verify API was called
     expect(pensionService.deleteReport).toHaveBeenCalledWith(mockReports[0].id);

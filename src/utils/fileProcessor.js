@@ -1,5 +1,5 @@
 const Papa = require('papaparse');
-const XLSX = require('xlsx');
+const ExcelJS = require('exceljs');
 const fs = require('fs').promises;
 
 const processPayrollFile = async (filePath) => {
@@ -17,10 +17,22 @@ const processPayrollFile = async (filePath) => {
         });
       });
     } else if (fileExtension === 'xlsx') {
-      const workbook = XLSX.readFile(filePath);
-      const sheetName = workbook.SheetNames[0];
-      const worksheet = workbook.Sheets[sheetName];
-      data = XLSX.utils.sheet_to_json(worksheet);
+      const workbook = new ExcelJS.Workbook();
+      await workbook.xlsx.readFile(filePath);
+      const worksheet = workbook.getWorksheet(1);
+      
+      const headers = worksheet.getRow(1).values.slice(1); // Skip first empty cell
+      data = [];
+      
+      worksheet.eachRow((row, rowNumber) => {
+        if (rowNumber === 1) return; // Skip header row
+        
+        const rowData = {};
+        row.eachCell((cell, colNumber) => {
+          rowData[headers[colNumber - 1]] = cell.value;
+        });
+        data.push(rowData);
+      });
     } else {
       throw new Error('Unsupported file format');
     }

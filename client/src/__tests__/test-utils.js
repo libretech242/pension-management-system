@@ -45,13 +45,20 @@ export const generateMockPension = (overrides = {}) => ({
 });
 
 export const generateMockEmployee = (overrides = {}) => ({
-  id: Math.floor(Math.random() * 1000),
+  id: `emp-${Math.floor(Math.random() * 1000)}`,
+  nibNumber: `NIB${Math.floor(10000000 + Math.random() * 90000000)}`,
   firstName: 'John',
   lastName: 'Doe',
-  email: 'john.doe@example.com',
-  employeeId: `EMP${Math.floor(Math.random() * 1000)}`,
+  email: `john.doe${Math.floor(Math.random() * 1000)}@example.com`,
+  dateOfBirth: '1990-01-01',
+  employmentDate: '2020-01-01',
+  employmentType: 'LINE_STAFF',
   department: 'Engineering',
-  status: 'Active',
+  salary: 50000.00,
+  employerContributionRate: 5.00,
+  employeeContributionRate: 3.50,
+  status: 'ACTIVE',
+  role: 'EMPLOYEE',
   ...overrides
 });
 

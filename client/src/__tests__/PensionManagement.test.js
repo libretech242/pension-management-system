@@ -82,13 +82,17 @@ describe('PensionManagement Component', () => {
     pensionService.getContributions.mockResolvedValue(mockContributions);
   });
 
-  it('renders loading state initially', () => {
-    renderWithProviders(<PensionManagement />);
+  it('renders loading state initially', async () => {
+    await act(async () => {
+      renderWithProviders(<PensionManagement />);
+    });
     expect(screen.getByRole('progressbar')).toBeInTheDocument();
   });
 
   it('loads and displays overview data', async () => {
-    renderWithProviders(<PensionManagement />);
+    await act(async () => {
+      renderWithProviders(<PensionManagement />);
+    });
 
     await waitFor(() => {
       expect(screen.getByText('Total Employees')).toBeInTheDocument();
@@ -98,25 +102,33 @@ describe('PensionManagement Component', () => {
   });
 
   it('switches between tabs correctly', async () => {
-    renderWithProviders(<PensionManagement />);
+    await act(async () => {
+      renderWithProviders(<PensionManagement />);
+    });
 
     await waitFor(() => {
       expect(screen.getByText('Overview')).toBeInTheDocument();
     });
 
     // Click Contributions tab
-    fireEvent.click(screen.getByText('Contributions'));
+    await act(async () => {
+      fireEvent.click(screen.getByText('Contributions'));
+    });
     expect(screen.getByText('Add Contribution')).toBeInTheDocument();
 
     // Click Employee Details tab
-    fireEvent.click(screen.getByText('Employee Details'));
+    await act(async () => {
+      fireEvent.click(screen.getByText('Employee Details'));
+    });
     expect(screen.getByText('Search Employees')).toBeInTheDocument();
   });
 
   it('handles adding a new contribution', async () => {
     pensionService.addContribution.mockResolvedValue({ id: 3, ...mockContributions[0] });
     
-    renderWithProviders(<PensionManagement />);
+    await act(async () => {
+      renderWithProviders(<PensionManagement />);
+    });
 
     // Wait for initial load
     await waitFor(() => {
@@ -124,10 +136,14 @@ describe('PensionManagement Component', () => {
     });
 
     // Switch to Contributions tab
-    fireEvent.click(screen.getByText('Contributions'));
+    await act(async () => {
+      fireEvent.click(screen.getByText('Contributions'));
+    });
 
     // Click Add Contribution button
-    fireEvent.click(screen.getByText('Add Contribution'));
+    await act(async () => {
+      fireEvent.click(screen.getByText('Add Contribution'));
+    });
 
     // Fill in the form
     await act(async () => {
@@ -157,7 +173,9 @@ describe('PensionManagement Component', () => {
   it('handles contribution deletion', async () => {
     pensionService.deleteContribution.mockResolvedValue({ success: true });
     
-    renderWithProviders(<PensionManagement />);
+    await act(async () => {
+      renderWithProviders(<PensionManagement />);
+    });
 
     // Wait for initial load and switch to Contributions tab
     await waitFor(() => {
@@ -166,7 +184,9 @@ describe('PensionManagement Component', () => {
 
     // Find and click delete button for first contribution
     const deleteButtons = screen.getAllByTestId('DeleteIcon');
-    fireEvent.click(deleteButtons[0]);
+    await act(async () => {
+      fireEvent.click(deleteButtons[0]);
+    });
 
     // Verify API was called
     expect(pensionService.deleteContribution).toHaveBeenCalledWith(mockContributions[0].id);
@@ -178,7 +198,9 @@ describe('PensionManagement Component', () => {
   });
 
   it('handles employee search correctly', async () => {
-    renderWithProviders(<PensionManagement />);
+    await act(async () => {
+      renderWithProviders(<PensionManagement />);
+    });
 
     // Wait for initial load and switch to Employee Details tab
     await waitFor(() => {
@@ -187,7 +209,9 @@ describe('PensionManagement Component', () => {
 
     // Type in search box
     const searchInput = screen.getByLabelText('Search Employees');
-    fireEvent.change(searchInput, { target: { value: 'John' } });
+    await act(async () => {
+      fireEvent.change(searchInput, { target: { value: 'John' } });
+    });
 
     // Verify filtered results
     await waitFor(() => {
@@ -200,7 +224,9 @@ describe('PensionManagement Component', () => {
     // Mock API error
     pensionService.getStatistics.mockRejectedValue(new Error('API Error'));
     
-    renderWithProviders(<PensionManagement />);
+    await act(async () => {
+      renderWithProviders(<PensionManagement />);
+    });
 
     // Verify error message
     await waitFor(() => {
@@ -212,7 +238,9 @@ describe('PensionManagement Component', () => {
     pensionService.generateReport.mockResolvedValue(mockContributions);
     pensionService.exportToCSV.mockImplementation(() => {});
     
-    renderWithProviders(<PensionManagement />);
+    await act(async () => {
+      renderWithProviders(<PensionManagement />);
+    });
 
     // Wait for initial load and switch to Contributions tab
     await waitFor(() => {
@@ -220,7 +248,9 @@ describe('PensionManagement Component', () => {
     });
 
     // Click export button
-    fireEvent.click(screen.getByText('Export'));
+    await act(async () => {
+      fireEvent.click(screen.getByText('Export'));
+    });
 
     // Verify API calls
     expect(pensionService.generateReport).toHaveBeenCalled();
