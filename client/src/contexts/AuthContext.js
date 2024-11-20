@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import axios from 'axios';
+import api from '../services/api';
 
 const AuthContext = createContext(null);
 
@@ -9,22 +9,25 @@ export const AuthProvider = ({ children }) => {
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    // Check if user is logged in on mount
     checkAuthStatus();
   }, []);
 
   const checkAuthStatus = async () => {
     try {
       const token = localStorage.getItem('token');
-      if (token) {
-        const response = await axios.get('/api/auth/profile', {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-        setUser(response.data);
+      if (!token) {
+        setLoading(false);
+        return;
       }
+
+      const response = await api.get('/auth/profile');
+      setUser(response.data);
     } catch (error) {
       console.error('Auth status check failed:', error);
-      localStorage.removeItem('token');
+      if (error.response?.status === 401) {
+        localStorage.removeItem('token');
+        setUser(null);
+      }
     } finally {
       setLoading(false);
     }
@@ -33,62 +36,86 @@ export const AuthProvider = ({ children }) => {
   const login = async (email, password) => {
     try {
       setError(null);
-      const response = await axios.post('/api/auth/login', { email, password });
+      const response = await api.post('/auth/login', { email, password });
       const { token, user: userData } = response.data;
       localStorage.setItem('token', token);
       setUser(userData);
       return userData;
     } catch (error) {
-      setError(error.response?.data?.error || 'Login failed');
+      console.error('Login failed:', error.response?.data?.message || error.message);
+      setError(error.response?.data?.message || 'Login failed. Please try again.');
       throw error;
+    }
+  };
+
+  const logout = async () => {
+    try {
+      await api.post('/auth/logout');
+    } catch (error) {
+      console.error('Logout error:', error);
+    } finally {
+      localStorage.removeItem('token');
+      setUser(null);
     }
   };
 
   const register = async (userData) => {
     try {
       setError(null);
-      const response = await axios.post('/api/auth/register', userData);
+      const response = await api.post('/auth/register', userData);
       const { token, user: newUser } = response.data;
       localStorage.setItem('token', token);
       setUser(newUser);
       return newUser;
     } catch (error) {
-      setError(error.response?.data?.error || 'Registration failed');
+      console.error('Registration failed:', error.response?.data?.message || error.message);
+      setError(error.response?.data?.message || 'Registration failed. Please try again.');
       throw error;
     }
-  };
-
-  const logout = () => {
-    localStorage.removeItem('token');
-    setUser(null);
   };
 
   const updateProfile = async (profileData) => {
     try {
       setError(null);
-      const response = await axios.put('/api/auth/update-profile', profileData, {
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
-      });
+      const response = await api.put('/auth/update-profile', profileData);
       setUser(response.data);
       return response.data;
     } catch (error) {
-      setError(error.response?.data?.error || 'Profile update failed');
+      console.error('Profile update failed:', error.response?.data?.message || error.message);
+      setError(error.response?.data?.message || 'Profile update failed. Please try again.');
       throw error;
     }
   };
 
-  const changePassword = async (currentPassword, newPassword) => {
+  const changePassword = async (passwordData) => {
     try {
       setError(null);
-      await axios.put(
-        '/api/auth/change-password',
-        { currentPassword, newPassword },
-        {
-          headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
-        }
-      );
+      await api.put('/auth/change-password', passwordData);
     } catch (error) {
-      setError(error.response?.data?.error || 'Password change failed');
+      console.error('Password change failed:', error.response?.data?.message || error.message);
+      setError(error.response?.data?.message || 'Password change failed. Please try again.');
+      throw error;
+    }
+  };
+
+  const requestPasswordReset = async (email) => {
+    try {
+      setError(null);
+      await api.post('/auth/forgot-password', { email });
+    } catch (error) {
+      console.error('Password reset request failed:', error.response?.data?.message || error.message);
+      setError(error.response?.data?.message || 'Password reset request failed. Please try again.');
+      throw error;
+    }
+  };
+
+  const resetPassword = async (token, newPassword) => {
+    try {
+      setError(null);
+      await api.post('/auth/reset-password', { token, newPassword });
+    } catch (error) {
+      console.error('Password reset failed:', error.response?.data?.message || error.message);
+      setError(error.response?.data?.message || 'Password reset failed. Please try again.');
       throw error;
     }
   };
@@ -97,16 +124,22 @@ export const AuthProvider = ({ children }) => {
     user,
     loading,
     error,
+    isAuthenticated: !!user,
     login,
-    register,
     logout,
+    register,
     updateProfile,
     changePassword,
-    isAuthenticated: !!user,
-    isAdmin: user?.role?.name === 'admin'
+    requestPasswordReset,
+    resetPassword,
+    checkAuthStatus
   };
 
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+  return (
+    <AuthContext.Provider value={value}>
+      {!loading && children}
+    </AuthContext.Provider>
+  );
 };
 
 export const useAuth = () => {

@@ -1,0 +1,83 @@
+.pension-report {
+  padding: 24px;
+}
+
+.pension-report-filter {
+  margin-bottom: 24px;
+  background: #f5f5f5;
+  padding: 24px;
+  border-radius: 4px;
+}
+
+.pension-report-filter .ant-form-item {
+  margin-bottom: 16px;
+}
+
+@media (max-width: 768px) {
+  .pension-report {
+    padding: 12px;
+  }
+
+  .pension-report-filter {
+    padding: 16px;
+  }
+
+  .pension-report-filter .ant-form-item {
+    margin-right: 0 !important;
+    width: 100%;
+  }
+
+  .pension-report-filter .ant-select {
+    width: 100% !important;
+  }
+}
+
+/* Chart Styles */
+.recharts-wrapper {
+  margin: 0 auto;
+}
+
+.recharts-default-tooltip {
+  background-color: rgba(255, 255, 255, 0.9) !important;
+  border: 1px solid #ccc !important;
+  border-radius: 4px !important;
+  padding: 8px !important;
+}
+
+/* Table Styles */
+.ant-table-wrapper {
+  margin-top: 24px;
+}
+
+.ant-table-cell {
+  white-space: nowrap;
+}
+
+/* Loading and Error States */
+.pension-report-loading,
+.pension-report-error {
+  text-align: center;
+  padding: 48px 0;
+}
+
+.pension-report-error {
+  color: #ff4d4f;
+}
+
+/* Card Styles */
+.ant-card {
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+}
+
+.ant-card-head-title {
+  font-weight: 600;
+}
+
+/* Button Styles */
+.pension-report .ant-btn {
+  margin-right: 8px;
+}
+
+.pension-report .ant-btn:last-child {
+  margin-right: 0;
+}

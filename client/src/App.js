@@ -30,7 +30,7 @@ function App() {
 
           {/* Protected Routes */}
           <Route
-            path="/dashboard/*"
+            path="/*"
             element={
               <ProtectedRoute>
                 <div className="dashboard-layout">
@@ -39,7 +39,7 @@ function App() {
                     <Navigation />
                     <div className="page-content">
                       <Routes>
-                        <Route index element={<Dashboard />} />
+                        <Route path="dashboard" element={<Dashboard />} />
                         <Route path="employees" element={<Employees />} />
                         <Route path="pension-management" element={<PensionManagement />} />
                         <Route path="reports" element={<Reports />} />
@@ -59,9 +59,6 @@ function App() {
               </ProtectedRoute>
             }
           />
-
-          {/* Catch-all route */}
-          <Route path="*" element={<NotFound />} />
         </Routes>
       </div>
     </AuthProvider>

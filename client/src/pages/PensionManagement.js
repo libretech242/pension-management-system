@@ -45,9 +45,11 @@ import {
   TrendingUp as TrendingUpIcon,
   People as PeopleIcon,
   AccountBalance as AccountBalanceIcon,
+  Error as ErrorIcon,
+  Refresh as RefreshIcon
 } from '@mui/icons-material';
 import { format } from 'date-fns';
-import { pensionService } from '../services/pensionService';
+import { pensionService, calculatePensionContributions } from '../services/pensionService';
 
 const PensionManagement = () => {
   const [currentTab, setCurrentTab] = useState(0);
@@ -60,6 +62,7 @@ const PensionManagement = () => {
   const [stats, setStats] = useState(null);
   const [employees, setEmployees] = useState([]);
   const [contributions, setContributions] = useState([]);
+  const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'info' });
 
   useEffect(() => {
     loadInitialData();
@@ -77,8 +80,8 @@ const PensionManagement = () => {
       setEmployees(employeesData);
       setContributions(contributionsData);
     } catch (err) {
-      setError('Failed to load data. Please try again.');
       console.error('Data loading error:', err);
+      setError('Failed to load data. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -91,6 +94,11 @@ const PensionManagement = () => {
   const handleCloseSnackbar = () => {
     setError(null);
     setSuccess(null);
+    setSnackbar({ ...snackbar, open: false });
+  };
+
+  const handleRefresh = () => {
+    loadInitialData();
   };
 
   // Overview Tab Content
@@ -437,7 +445,10 @@ const PensionManagement = () => {
   // Employee Details Tab Content
   const EmployeeDetailsTab = () => {
     const [searchTerm, setSearchTerm] = useState('');
-    const [filteredEmployees, setFilteredEmployees] = useState(employees);
+    const [filteredEmployees, setFilteredEmployees] = useState([]);
+    const [selectedEmployee, setSelectedEmployee] = useState(null);
+    const [pensionProjection, setPensionProjection] = useState(null);
+    const [projectionError, setProjectionError] = useState(null);
 
     useEffect(() => {
       setFilteredEmployees(
@@ -448,11 +459,64 @@ const PensionManagement = () => {
       );
     }, [searchTerm, employees]);
 
+    const handleEmployeeSelect = (employee) => {
+      setSelectedEmployee(employee);
+      setProjectionError(null);
+      
+      try {
+        if (!employee.salary || !employee.age || !employee.yearsOfService) {
+          throw new Error('Missing required employee data for pension calculation');
+        }
+
+        const projection = calculatePensionContributions(
+          employee.salary,
+          'yearly',
+          employee.age,
+          employee.yearsOfService
+        );
+        setPensionProjection(projection);
+      } catch (error) {
+        console.error('Pension calculation error:', error);
+        setProjectionError(error.message);
+        setPensionProjection(null);
+      }
+    };
+
+    if (loading) {
+      return (
+        <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
+          <CircularProgress />
+        </Box>
+      );
+    }
+
+    if (error) {
+      return (
+        <Box p={3}>
+          <Alert
+            severity="error"
+            action={
+              <Button
+                color="inherit"
+                size="small"
+                startIcon={<RefreshIcon />}
+                onClick={handleRefresh}
+              >
+                Retry
+              </Button>
+            }
+          >
+            {error}
+          </Alert>
+        </Box>
+      );
+    }
+
     return (
       <div className="space-y-6 py-6">
-        <div className="flex justify-between items-center">
+        <div className="flex justify-between items-center mb-6">
           <TextField
-            fullWidth
+            className="w-1/3"
             label="Search Employees"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
@@ -460,46 +524,180 @@ const PensionManagement = () => {
               startAdornment: <SearchIcon sx={{ mr: 1, color: 'text.secondary' }} />,
             }}
           />
+          <Button
+            startIcon={<RefreshIcon />}
+            onClick={handleRefresh}
+            variant="outlined"
+            size="small"
+          >
+            Refresh
+          </Button>
         </div>
 
-        <TableContainer component={Paper}>
-          <Table>
-            <TableHead>
-              <TableRow>
-                <TableCell>Employee Name</TableCell>
-                <TableCell>Pension ID</TableCell>
-                <TableCell>Start Date</TableCell>
-                <TableCell align="right">Total Contributions</TableCell>
-                <TableCell>Status</TableCell>
-                <TableCell>Actions</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {filteredEmployees.map((emp) => (
-                <TableRow key={emp.id}>
-                  <TableCell>{emp.name}</TableCell>
-                  <TableCell>{emp.pensionId}</TableCell>
-                  <TableCell>{format(new Date(emp.startDate), 'MM/dd/yyyy')}</TableCell>
-                  <TableCell align="right">
-                    ${emp.contributions.reduce((sum, c) => sum + c.amount, 0)}
-                  </TableCell>
-                  <TableCell>{emp.status}</TableCell>
-                  <TableCell>
-                    <IconButton
+        <Grid container spacing={4}>
+          {/* Employee List */}
+          <Grid item xs={12} md={7}>
+            <TableContainer component={Paper}>
+              <Table>
+                <TableHead>
+                  <TableRow>
+                    <TableCell>Employee Name</TableCell>
+                    <TableCell>Pension ID</TableCell>
+                    <TableCell>Start Date</TableCell>
+                    <TableCell align="right">Total Contributions</TableCell>
+                    <TableCell>Status</TableCell>
+                    <TableCell>Actions</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {filteredEmployees.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={6} align="center">
+                        <Typography color="text.secondary">
+                          {searchTerm ? 'No employees found matching your search' : 'No employees found'}
+                        </Typography>
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    filteredEmployees.map((emp) => (
+                      <TableRow 
+                        key={emp.id}
+                        onClick={() => handleEmployeeSelect(emp)}
+                        className="cursor-pointer hover:bg-gray-50"
+                      >
+                        <TableCell>{emp.name}</TableCell>
+                        <TableCell>{emp.pensionId}</TableCell>
+                        <TableCell>{format(new Date(emp.startDate), 'MM/dd/yyyy')}</TableCell>
+                        <TableCell align="right">
+                          ${emp.contributions.reduce((sum, c) => sum + c.amount, 0).toLocaleString()}
+                        </TableCell>
+                        <TableCell>
+                          <Chip
+                            label={emp.status}
+                            color={emp.status === 'active' ? 'success' : 'default'}
+                            size="small"
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <IconButton
+                            size="small"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedEmployee(emp);
+                              setOpenDialog(true);
+                            }}
+                          >
+                            <EditIcon />
+                          </IconButton>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          </Grid>
+
+          {/* Employee Pension Details */}
+          <Grid item xs={12} md={5}>
+            {selectedEmployee && (projectionError ? (
+              <Paper className="p-6">
+                <Alert 
+                  severity="error"
+                  icon={<ErrorIcon />}
+                  action={
+                    <Button
+                      color="inherit"
                       size="small"
                       onClick={() => {
-                        setSelectedEmployee(emp);
-                        setOpenDialog(true);
+                        setSelectedEmployee(null);
+                        setProjectionError(null);
                       }}
                     >
-                      <EditIcon />
-                    </IconButton>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </TableContainer>
+                      Clear
+                    </Button>
+                  }
+                >
+                  {projectionError}
+                </Alert>
+                <Typography variant="body2" color="text.secondary" className="mt-4">
+                  Please ensure all required employee data (salary, age, and years of service) 
+                  is properly set before calculating pension projections.
+                </Typography>
+              </Paper>
+            ) : pensionProjection && (
+              <Paper className="p-6 space-y-6">
+                <Typography variant="h6" className="font-semibold mb-4">
+                  Pension Projection for {selectedEmployee.name}
+                </Typography>
+
+                <div className="space-y-4">
+                  {/* Current Contributions */}
+                  <div>
+                    <Typography variant="subtitle2" color="text.secondary">
+                      Current Contribution Rate
+                    </Typography>
+                    <Typography variant="h5" className="font-semibold">
+                      {(pensionProjection.yearly.rate * 100).toFixed(1)}%
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      Base rate: 6% + Age bonus: {selectedEmployee.age >= 50 ? '2%' : '0%'} + 
+                      Service bonus: {
+                        selectedEmployee.yearsOfService >= 20 ? '2%' : 
+                        selectedEmployee.yearsOfService >= 10 ? '1%' : '0%'
+                      }
+                    </Typography>
+                  </div>
+
+                  {/* Monthly Contributions */}
+                  <div>
+                    <Typography variant="subtitle2" color="text.secondary">
+                      Monthly Contribution
+                    </Typography>
+                    <Typography variant="h5" className="font-semibold">
+                      ${pensionProjection.monthly.contribution.toLocaleString(undefined, {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2
+                      })}
+                    </Typography>
+                  </div>
+
+                  {/* Projected Pension */}
+                  <div className="pt-4 border-t">
+                    <Typography variant="subtitle2" color="text.secondary">
+                      Projected Pension at Age {pensionProjection.projectedPension?.retirementAge || 65}
+                    </Typography>
+                    <Typography variant="h5" className="font-semibold">
+                      ${(pensionProjection.projectedPension?.monthlyPension || 0).toLocaleString(undefined, {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2
+                      })} /month
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      Total Accumulated: ${(pensionProjection.projectedPension?.totalAccumulated || 0).toLocaleString(undefined, {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2
+                      })}
+                    </Typography>
+                  </div>
+
+                  {/* Assumptions */}
+                  <div className="pt-4 border-t">
+                    <Typography variant="subtitle2" color="text.secondary">
+                      Calculation Assumptions
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      • Return Rate: {((pensionProjection.projectedPension?.assumedReturnRate || 0.07) * 100).toFixed(1)}%<br />
+                      • Inflation Rate: {((pensionProjection.projectedPension?.assumedInflationRate || 0.03) * 100).toFixed(1)}%<br />
+                      • Withdrawal Rate: 4%<br />
+                      • Years of Service: {selectedEmployee.yearsOfService} years
+                    </Typography>
+                  </div>
+                </div>
+              </Paper>
+            ))}
+          </Grid>
+        </Grid>
       </div>
     );
   };
@@ -554,19 +752,19 @@ const PensionManagement = () => {
         </Paper>
 
         <Snackbar
-          open={!!error || !!success}
+          open={!!error || !!success || snackbar.open}
           autoHideDuration={6000}
           onClose={handleCloseSnackbar}
           anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
         >
           <Alert 
             onClose={handleCloseSnackbar} 
-            severity={error ? "error" : "success"}
+            severity={error ? "error" : success ? "success" : snackbar.severity}
             className={`rounded-lg shadow-lg border ${
-              error ? 'border-red-100' : 'border-green-100'
+              error ? 'border-red-100' : success ? 'border-green-100' : 'border-blue-100'
             }`}
           >
-            {error || success}
+            {error || success || snackbar.message}
           </Alert>
         </Snackbar>
       </div>

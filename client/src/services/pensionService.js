@@ -1,63 +1,125 @@
 import axios from 'axios';
 
-const API_URL = '/api';
+const API_URL = process.env.NODE_ENV === 'production' 
+  ? '/api'
+  : 'http://localhost:5000/api';
+
+// Configure axios defaults
+axios.defaults.baseURL = API_URL;
+axios.defaults.headers.common['Content-Type'] = 'application/json';
+
+// Add response interceptor for error handling
+axios.interceptors.response.use(
+  response => response,
+  error => {
+    console.error('API Error:', error.response?.data || error.message);
+    throw error;
+  }
+);
 
 export const pensionService = {
   // Contribution related endpoints
   getContributions: async () => {
-    const response = await axios.get(`${API_URL}/contributions`);
-    return response.data;
+    try {
+      const response = await axios.get('/pension/contributions');
+      return response.data;
+    } catch (error) {
+      throw new Error('Failed to fetch contributions: ' + (error.response?.data?.message || error.message));
+    }
   },
 
   addContribution: async (contributionData) => {
-    const response = await axios.post(`${API_URL}/contributions`, contributionData);
-    return response.data;
+    try {
+      const response = await axios.post('/pension/contributions', contributionData);
+      return response.data;
+    } catch (error) {
+      throw new Error('Failed to add contribution: ' + (error.response?.data?.message || error.message));
+    }
   },
 
   updateContribution: async (id, contributionData) => {
-    const response = await axios.put(`${API_URL}/contributions/${id}`, contributionData);
-    return response.data;
+    try {
+      const response = await axios.put(`/pension/contributions/${id}`, contributionData);
+      return response.data;
+    } catch (error) {
+      throw new Error('Failed to update contribution: ' + (error.response?.data?.message || error.message));
+    }
   },
 
   deleteContribution: async (id) => {
-    const response = await axios.delete(`${API_URL}/contributions/${id}`);
-    return response.data;
+    try {
+      const response = await axios.delete(`/pension/contributions/${id}`);
+      return response.data;
+    } catch (error) {
+      throw new Error('Failed to delete contribution: ' + (error.response?.data?.message || error.message));
+    }
   },
 
   // Employee related endpoints
   getEmployees: async () => {
-    const response = await axios.get(`${API_URL}/employees`);
-    return response.data;
+    try {
+      const response = await axios.get('/employees');
+      return response.data;
+    } catch (error) {
+      throw new Error('Failed to fetch employees: ' + (error.response?.data?.message || error.message));
+    }
   },
 
   getEmployeeDetails: async (id) => {
-    const response = await axios.get(`${API_URL}/employees/${id}`);
-    return response.data;
+    try {
+      const response = await axios.get(`/employees/${id}`);
+      return response.data;
+    } catch (error) {
+      throw new Error('Failed to fetch employee details: ' + (error.response?.data?.message || error.message));
+    }
   },
 
   updateEmployeeStatus: async (id, status) => {
-    const response = await axios.patch(`${API_URL}/employees/${id}/status`, { status });
-    return response.data;
+    try {
+      const response = await axios.patch(`/employees/${id}/status`, { status });
+      return response.data;
+    } catch (error) {
+      throw new Error('Failed to update employee status: ' + (error.response?.data?.message || error.message));
+    }
   },
 
   // Reports and statistics
   getStatistics: async () => {
-    const response = await axios.get(`${API_URL}/statistics`);
-    return response.data;
+    try {
+      const response = await axios.get('/pension/statistics');
+      return response.data;
+    } catch (error) {
+      throw new Error('Failed to fetch statistics: ' + (error.response?.data?.message || error.message));
+    }
   },
 
   generateReport: async (params) => {
-    const response = await axios.get(`${API_URL}/reports/generate`, { params });
-    return response.data;
+    try {
+      const response = await axios.get('/pension/reports/generate', { params });
+      return response.data;
+    } catch (error) {
+      throw new Error('Failed to generate report: ' + (error.response?.data?.message || error.message));
+    }
   }
 };
 
 // Pension calculation and management service
 
-export const calculatePensionContributions = (salary, type = 'weekly') => {
-  const CONTRIBUTION_RATE = 0.06; // 6% contribution rate
+export const calculatePensionContributions = (salary, type = 'weekly', employeeAge, yearsOfService) => {
+  const BASE_CONTRIBUTION_RATE = 0.06; // 6% base contribution rate
   const WEEKS_IN_MONTH = 4;
   const WEEKS_IN_YEAR = 52;
+
+  // Additional contribution based on age and years of service
+  const getAdditionalRate = (age, years) => {
+    let rate = 0;
+    if (age >= 50) rate += 0.02; // Additional 2% for age 50+
+    if (years >= 10) rate += 0.01; // Additional 1% for 10+ years of service
+    if (years >= 20) rate += 0.01; // Additional 1% for 20+ years of service
+    return rate;
+  };
+
+  const totalRate = BASE_CONTRIBUTION_RATE + getAdditionalRate(employeeAge, yearsOfService);
 
   let weeklySalary;
   if (type === 'weekly') {
@@ -68,23 +130,52 @@ export const calculatePensionContributions = (salary, type = 'weekly') => {
     weeklySalary = salary / WEEKS_IN_YEAR;
   }
 
-  const weeklyContribution = weeklySalary * CONTRIBUTION_RATE;
+  const weeklyContribution = weeklySalary * totalRate;
   const monthlyContribution = weeklyContribution * WEEKS_IN_MONTH;
   const yearlyContribution = weeklyContribution * WEEKS_IN_YEAR;
+
+  const projectedPension = calculateProjectedPension(salary, totalRate, yearsOfService);
 
   return {
     weekly: {
       salary: weeklySalary,
       contribution: weeklyContribution,
+      rate: totalRate
     },
     monthly: {
       salary: weeklySalary * WEEKS_IN_MONTH,
       contribution: monthlyContribution,
+      rate: totalRate
     },
     yearly: {
       salary: weeklySalary * WEEKS_IN_YEAR,
       contribution: yearlyContribution,
+      rate: totalRate
     },
+    projectedPension
+  };
+};
+
+const calculateProjectedPension = (salary, rate, yearsOfService) => {
+  const RETIREMENT_AGE = 65;
+  const AVERAGE_RETURN_RATE = 0.07; // 7% average annual return
+  const INFLATION_RATE = 0.03; // 3% average inflation
+
+  const annualContribution = salary * rate;
+  const realReturnRate = (1 + AVERAGE_RETURN_RATE) / (1 + INFLATION_RATE) - 1;
+  
+  // Calculate future value using compound interest formula
+  const futureValue = annualContribution * ((Math.pow(1 + realReturnRate, yearsOfService) - 1) / realReturnRate);
+  
+  // Calculate monthly pension assuming a 4% withdrawal rate
+  const monthlyPension = (futureValue * 0.04) / 12;
+
+  return {
+    totalAccumulated: futureValue,
+    monthlyPension: monthlyPension,
+    retirementAge: RETIREMENT_AGE,
+    assumedReturnRate: AVERAGE_RETURN_RATE,
+    assumedInflationRate: INFLATION_RATE
   };
 };
 

@@ -1,6 +1,6 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import { BrowserRouter } from 'react-router-dom';
+import { BrowserRouter, UNSAFE_DataRouterContext, UNSAFE_DataRouterStateContext } from 'react-router-dom';
 import { ThemeProvider } from '@mui/material/styles';
 import { LocalizationProvider } from '@mui/x-date-pickers';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
@@ -13,7 +13,7 @@ root.render(
   <React.StrictMode>
     <ThemeProvider theme={theme}>
       <LocalizationProvider dateAdapter={AdapterDateFns}>
-        <BrowserRouter>
+        <BrowserRouter future={{ v7_startTransition: true }}>
           <App />
         </BrowserRouter>
       </LocalizationProvider>
