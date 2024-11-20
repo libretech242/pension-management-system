@@ -3,6 +3,7 @@ const csrf = require('csurf');
 const xss = require('xss-clean');
 const mongoSanitize = require('express-mongo-sanitize');
 const rateLimit = require('express-rate-limit');
+const cors = require('cors');
 
 // Rate limiting configuration
 const limiter = rateLimit({
@@ -19,8 +20,18 @@ const csrfProtection = csrf({
   }
 });
 
+// CORS configuration
+const corsOptions = {
+  origin: process.env.NODE_ENV === 'development' ? 'http://localhost:3000' : process.env.FRONTEND_URL,
+  credentials: true,
+  optionsSuccessStatus: 200
+};
+
 // Security middleware configuration
 const securityMiddleware = [
+  // Enable CORS
+  cors(corsOptions),
+  
   // Basic security headers
   helmet(),
   
