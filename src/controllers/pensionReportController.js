@@ -4,13 +4,14 @@ const { validationResult } = require('express-validator');
 const ExcelJS = require('exceljs');
 const { parse } = require('fast-csv');
 const { format } = require('date-fns');
+const ApiResponse = require('../utils/apiResponse');
 
 class PensionReportController {
   static async getEmployeeContributions(req, res) {
     try {
       const errors = validationResult(req);
       if (!errors.isEmpty()) {
-        return res.status(400).json({ errors: errors.array() });
+        return res.status(400).json(ApiResponse.error('Validation failed', errors.array()));
       }
 
       const { employeeId } = req.params;
@@ -22,16 +23,10 @@ class PensionReportController {
         endDate
       );
 
-      return res.json({
-        success: true,
-        data: contributions
-      });
+      return res.json(ApiResponse.success(contributions));
     } catch (error) {
       logger.error('Error in getEmployeeContributions controller', { error });
-      return res.status(500).json({
-        success: false,
-        error: 'Internal server error'
-      });
+      return res.status(500).json(ApiResponse.error('Internal server error'));
     }
   }
 
@@ -39,7 +34,7 @@ class PensionReportController {
     try {
       const errors = validationResult(req);
       if (!errors.isEmpty()) {
-        return res.status(400).json({ errors: errors.array() });
+        return res.status(400).json(ApiResponse.error('Validation failed', errors.array()));
       }
 
       const { year, month } = req.query;
@@ -49,16 +44,10 @@ class PensionReportController {
         parseInt(month)
       );
 
-      return res.json({
-        success: true,
-        data: summary
-      });
+      return res.json(ApiResponse.success(summary));
     } catch (error) {
       logger.error('Error in getContributionsSummary controller', { error });
-      return res.status(500).json({
-        success: false,
-        error: 'Internal server error'
-      });
+      return res.status(500).json(ApiResponse.error('Internal server error'));
     }
   }
 
@@ -68,39 +57,33 @@ class PensionReportController {
 
       const invalidatedCount = await PensionReportService.invalidateEmployeeCache(employeeId);
 
-      return res.json({
-        success: true,
+      return res.json(ApiResponse.success({
         message: `Cache invalidated for employee ${employeeId}`,
         invalidatedCount
-      });
+      }));
     } catch (error) {
       logger.error('Error in invalidateEmployeeCache controller', { error });
-      return res.status(500).json({
-        success: false,
-        error: 'Internal server error'
-      });
+      return res.status(500).json(ApiResponse.error('Internal server error'));
     }
   }
 
   static async getCacheStats(req, res) {
     try {
       const stats = await PensionReportService.getCacheStats();
-
-      return res.json({
-        success: true,
-        data: stats
-      });
+      return res.json(ApiResponse.success(stats));
     } catch (error) {
       logger.error('Error in getCacheStats controller', { error });
-      return res.status(500).json({
-        success: false,
-        error: 'Internal server error'
-      });
+      return res.status(500).json(ApiResponse.error('Internal server error'));
     }
   }
 
   static async generateContributionsReport(req, res) {
     try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return res.status(400).json(ApiResponse.error('Validation failed', errors.array()));
+      }
+
       const { startDate, endDate } = req.query;
       const format = req.query.format || 'csv';
 
@@ -136,15 +119,17 @@ class PensionReportController {
       }
     } catch (error) {
       logger.error('Error generating contributions report', { error });
-      return res.status(500).json({
-        success: false,
-        error: 'Error generating report'
-      });
+      return res.status(500).json(ApiResponse.error('Error generating report'));
     }
   }
 
   static async generateEmployeeSummary(req, res) {
     try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return res.status(400).json(ApiResponse.error('Validation failed', errors.array()));
+      }
+
       const { startDate, endDate, employeeId } = req.query;
       const format = req.query.format || 'csv';
 
@@ -179,61 +164,55 @@ class PensionReportController {
       }
     } catch (error) {
       logger.error('Error generating employee summary', { error });
-      return res.status(500).json({
-        success: false,
-        error: 'Error generating summary'
-      });
+      return res.status(500).json(ApiResponse.error('Error generating summary'));
     }
   }
 
   static async importContributions(req, res) {
     try {
       if (!req.file) {
-        return res.status(400).json({ error: 'No file uploaded' });
+        return res.status(400).json(ApiResponse.error('No file uploaded'));
       }
 
       const fileBuffer = req.file.buffer;
       const results = await PensionReportService.importContributions(fileBuffer, req.file.mimetype);
 
-      return res.json({
-        success: true,
+      return res.json(ApiResponse.success({
         message: 'Contributions imported successfully',
         results
-      });
+      }));
     } catch (error) {
       logger.error('Error importing contributions', { error });
-      return res.status(500).json({
-        success: false,
-        error: 'Error importing contributions'
-      });
+      return res.status(500).json(ApiResponse.error('Error importing contributions'));
     }
   }
 
   static async importEmployees(req, res) {
     try {
       if (!req.file) {
-        return res.status(400).json({ error: 'No file uploaded' });
+        return res.status(400).json(ApiResponse.error('No file uploaded'));
       }
 
       const fileBuffer = req.file.buffer;
       const results = await PensionReportService.importEmployees(fileBuffer, req.file.mimetype);
 
-      return res.json({
-        success: true,
+      return res.json(ApiResponse.success({
         message: 'Employees imported successfully',
         results
-      });
+      }));
     } catch (error) {
       logger.error('Error importing employees', { error });
-      return res.status(500).json({
-        success: false,
-        error: 'Error importing employees'
-      });
+      return res.status(500).json(ApiResponse.error('Error importing employees'));
     }
   }
 
   static async exportContributions(req, res) {
     try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return res.status(400).json(ApiResponse.error('Validation failed', errors.array()));
+      }
+
       const { startDate, endDate } = req.query;
       const format = req.query.format || 'csv';
 
@@ -270,10 +249,7 @@ class PensionReportController {
       }
     } catch (error) {
       logger.error('Error exporting contributions', { error });
-      return res.status(500).json({
-        success: false,
-        error: 'Error exporting contributions'
-      });
+      return res.status(500).json(ApiResponse.error('Error exporting contributions'));
     }
   }
 
@@ -316,10 +292,7 @@ class PensionReportController {
       }
     } catch (error) {
       logger.error('Error exporting employees', { error });
-      return res.status(500).json({
-        success: false,
-        error: 'Error exporting employees'
-      });
+      return res.status(500).json(ApiResponse.error('Error exporting employees'));
     }
   }
 }
