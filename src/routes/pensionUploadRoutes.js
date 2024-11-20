@@ -146,33 +146,6 @@ router.post('/upload', authenticateToken, upload.single('file'), async (req, res
   }
 });
 
-// GET /api/pension-uploads/:id - Get specific upload
-router.get('/:id', authenticateToken, async (req, res, next) => {
-  try {
-    const upload = await Payroll.findByPk(req.params.id, {
-      include: [
-        {
-          model: Employee,
-          as: 'employee',
-          attributes: ['firstName', 'lastName', 'nibNumber']
-        },
-        {
-          model: PensionContribution,
-          as: 'pensionContributions'
-        }
-      ]
-    });
-
-    if (!upload) {
-      return res.status(404).json(ApiResponse.error('Upload not found', 404));
-    }
-
-    res.json(ApiResponse.success(upload));
-  } catch (error) {
-    next(error);
-  }
-});
-
 // GET /api/pension-uploads/pension - Get pension records
 router.get('/pension', authenticateToken, async (req, res, next) => {
   try {
@@ -195,6 +168,33 @@ router.get('/pension', authenticateToken, async (req, res, next) => {
     });
 
     res.json(ApiResponse.success(pensionRecords));
+  } catch (error) {
+    next(error);
+  }
+});
+
+// GET /api/pension-uploads/:id - Get specific upload
+router.get('/:id', authenticateToken, async (req, res, next) => {
+  try {
+    const upload = await Payroll.findByPk(req.params.id, {
+      include: [
+        {
+          model: Employee,
+          as: 'employee',
+          attributes: ['firstName', 'lastName', 'nibNumber']
+        },
+        {
+          model: PensionContribution,
+          as: 'pensionContributions'
+        }
+      ]
+    });
+
+    if (!upload) {
+      return res.status(404).json(ApiResponse.error('Upload not found', 404));
+    }
+
+    res.json(ApiResponse.success(upload));
   } catch (error) {
     next(error);
   }
