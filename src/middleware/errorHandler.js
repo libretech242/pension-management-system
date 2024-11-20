@@ -1,18 +1,5 @@
-const Sentry = require('@sentry/node');
 const { ValidationError } = require('sequelize');
 const logger = require('../utils/logger');
-
-// Initialize Sentry
-Sentry.init({
-  dsn: process.env.SENTRY_DSN,
-  environment: process.env.NODE_ENV,
-  integrations: [
-    new Sentry.Integrations.Http({ tracing: true }),
-    new Sentry.Integrations.Express(),
-    new Sentry.Integrations.Postgres(),
-  ],
-  tracesSampleRate: process.env.NODE_ENV === 'production' ? 0.2 : 1.0,
-});
 
 // Error types
 const errorTypes = {
@@ -30,114 +17,95 @@ class AppError extends Error {
     this.type = type;
     this.statusCode = statusCode;
     this.details = details;
-    Error.captureStackTrace(this, this.constructor);
+    this.timestamp = new Date().toISOString();
   }
 }
 
-// Request logging middleware
-const requestLogger = (req, res, next) => {
-  const start = Date.now();
-  res.on('finish', () => {
-    const duration = Date.now() - start;
-    logger.info('Request processed', {
-      method: req.method,
-      url: req.url,
-      status: res.statusCode,
-      duration,
-      ip: req.ip,
-      userAgent: req.get('user-agent')
-    });
-  });
-  next();
-};
-
 // Error logging middleware
 const errorLogger = (err, req, res, next) => {
-  // Log error details
-  logger.error('Error occurred', {
-    error: {
-      type: err.type || 'UnknownError',
-      message: err.message,
-      stack: err.stack,
-      details: err.details
-    },
-    request: {
-      method: req.method,
-      url: req.url,
-      params: req.params,
-      query: req.query,
-      body: req.body,
-      ip: req.ip,
-      userAgent: req.get('user-agent')
-    }
-  });
+  const isDevelopment = process.env.NODE_ENV === 'development';
+  
+  const logData = {
+    type: err.type || 'UnknownError',
+    message: err.message,
+    statusCode: err.statusCode || 500,
+    path: req.path,
+    method: req.method,
+    timestamp: err.timestamp || new Date().toISOString(),
+    requestId: req.id,
+    userId: req.user?.id
+  };
 
-  // Send error to Sentry if in production
-  if (process.env.NODE_ENV === 'production') {
-    Sentry.withScope(scope => {
-      scope.setExtra('request_details', {
-        method: req.method,
-        url: req.url,
-        params: req.params,
-        query: req.query
-      });
-      Sentry.captureException(err);
-    });
+  if (isDevelopment) {
+    logData.stack = err.stack;
+    logData.details = err.details;
+    logData.body = req.body;
+    logData.query = req.query;
   }
 
+  logger.error('Error occurred:', logData);
   next(err);
 };
 
 // Error response handler
 const errorHandler = (err, req, res, next) => {
+  const isDevelopment = process.env.NODE_ENV === 'development';
+  
+  // Default error values
   let statusCode = err.statusCode || 500;
   let message = err.message || 'Internal Server Error';
+  let type = err.type || 'UnknownError';
   let details = err.details || {};
 
-  // Handle specific error types
+  // Handle Sequelize validation errors
   if (err instanceof ValidationError) {
     statusCode = 400;
+    type = errorTypes.VALIDATION_ERROR;
     message = 'Validation Error';
     details = err.errors.map(e => ({
       field: e.path,
-      message: e.message
+      message: e.message,
+      value: e.value
     }));
   }
 
-  // Send error response
-  const errorResponse = {
+  const response = {
     error: {
-      type: err.type || 'UnknownError',
+      type,
       message,
-      ...(process.env.NODE_ENV === 'development' && { stack: err.stack }),
-      ...(Object.keys(details).length > 0 && { details })
+      ...(isDevelopment && {
+        details,
+        stack: err.stack,
+        timestamp: err.timestamp || new Date().toISOString()
+      })
     }
   };
 
-  // Add Sentry error tracking ID in production
-  if (process.env.NODE_ENV === 'production' && res.sentry) {
-    errorResponse.error.trackingId = res.sentry;
-  }
-
-  res.status(statusCode).json(errorResponse);
+  res.status(statusCode).json(response);
 };
 
 // Not found handler
-const notFoundHandler = (req, res, next) => {
-  const err = new AppError(
-    `Route not found: ${req.method} ${req.url}`,
+const notFoundHandler = (req, res) => {
+  const error = new AppError(
+    `Cannot ${req.method} ${req.path}`,
     errorTypes.NOT_FOUND_ERROR,
-    404
+    404,
+    { path: req.path, method: req.method }
   );
-  next(err);
+  
+  res.status(404).json({
+    error: {
+      type: error.type,
+      message: error.message,
+      details: error.details
+    }
+  });
 };
 
 module.exports = {
   AppError,
   errorTypes,
-  requestLogger,
   errorLogger,
   errorHandler,
-  notFoundHandler,
-  Sentry
+  notFoundHandler
 };

@@ -3,23 +3,40 @@ const bcrypt = require('bcryptjs');
 const sequelize = require('../config/database');
 
 class User extends Model {
-  // Method to validate password
-  async validatePassword(password) {
-    return bcrypt.compare(password, this.password_hash);
-  }
-
   // Method to generate JWT token
   generateToken() {
     const jwt = require('jsonwebtoken');
+    if (!process.env.JWT_SECRET) {
+      throw new Error(process.env.NODE_ENV === 'development' 
+        ? 'JWT_SECRET environment variable is not configured' 
+        : 'Authentication configuration error');
+    }
+    
     return jwt.sign(
       { 
         userId: this.id,
         email: this.email,
-        roleId: this.roleId
+        roleId: this.role_id,
+        timestamp: Date.now()
       },
       process.env.JWT_SECRET,
-      { expiresIn: process.env.JWT_EXPIRES_IN }
+      { 
+        expiresIn: process.env.JWT_EXPIRES_IN || '8h',
+        algorithm: 'HS256'
+      }
     );
+  }
+
+  // Method to validate password
+  async validatePassword(password) {
+    try {
+      return await bcrypt.compare(password, this.password_hash);
+    } catch (error) {
+      if (process.env.NODE_ENV === 'development') {
+        console.error('Password validation error:', error);
+      }
+      throw new Error('Password validation failed');
+    }
   }
 }
 
@@ -34,7 +51,12 @@ User.init({
     allowNull: false,
     unique: true,
     validate: {
-      isEmail: true
+      isEmail: {
+        msg: 'Please enter a valid email address'
+      },
+      notNull: {
+        msg: 'Email is required'
+      }
     }
   },
   password_hash: {
@@ -43,11 +65,29 @@ User.init({
   },
   first_name: {
     type: DataTypes.STRING,
-    allowNull: false
+    allowNull: false,
+    validate: {
+      notEmpty: {
+        msg: 'First name is required'
+      }
+    }
   },
   last_name: {
     type: DataTypes.STRING,
-    allowNull: false
+    allowNull: false,
+    validate: {
+      notEmpty: {
+        msg: 'Last name is required'
+      }
+    }
+  },
+  role_id: {
+    type: DataTypes.UUID,
+    allowNull: false,
+    references: {
+      model: 'roles',
+      key: 'id'
+    }
   },
   is_active: {
     type: DataTypes.BOOLEAN,
@@ -56,21 +96,13 @@ User.init({
   last_login: {
     type: DataTypes.DATE
   },
-  role_id: {
-    type: DataTypes.UUID,
-    allowNull: false
-  },
-  password_reset_token: {
-    type: DataTypes.STRING
-  },
-  password_reset_expires: {
+  last_activity: {
     type: DataTypes.DATE
   },
-  failed_login_attempts: {
-    type: DataTypes.INTEGER,
-    defaultValue: 0
+  reset_token: {
+    type: DataTypes.STRING
   },
-  account_locked_until: {
+  reset_token_expires: {
     type: DataTypes.DATE
   }
 }, {
@@ -78,12 +110,25 @@ User.init({
   modelName: 'User',
   tableName: 'users',
   timestamps: true,
+  underscored: true,
   hooks: {
     beforeSave: async (user) => {
-      // Only hash password if it's new or modified
       if (user.changed('password_hash')) {
-        const salt = await bcrypt.genSalt(12);
-        user.password_hash = await bcrypt.hash(user.password_hash, salt);
+        // Use fewer rounds in development for faster testing
+        const saltRounds = process.env.NODE_ENV === 'development' ? 5 : 12;
+        try {
+          const salt = await bcrypt.genSalt(saltRounds);
+          user.password_hash = await bcrypt.hash(user.password_hash, salt);
+          
+          if (process.env.NODE_ENV === 'development') {
+            console.log('Password hashed successfully with salt rounds:', saltRounds);
+          }
+        } catch (error) {
+          if (process.env.NODE_ENV === 'development') {
+            console.error('Password hashing error:', error);
+          }
+          throw new Error('Failed to hash password');
+        }
       }
     }
   }

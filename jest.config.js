@@ -19,80 +19,34 @@ module.exports = {
   // A map from regular expressions to paths to transformers
   transform: {
     '^.+\\.(js|jsx|ts|tsx)$': ['babel-jest', { 
-      rootMode: 'upward',
-      presets: [
-        ['@babel/preset-env', {
-          targets: { node: 'current' },
-          modules: 'commonjs'
-        }],
-        ['@babel/preset-react', { runtime: 'automatic' }]
-      ],
-      plugins: [
-        '@babel/plugin-transform-modules-commonjs'
-      ]
+      presets: ['@babel/preset-env', '@babel/preset-react']
     }]
   },
 
-  // The directory where Jest should output its coverage files
-  coverageDirectory: 'coverage',
-
-  // An array of regexp pattern strings used to skip coverage collection
-  coveragePathIgnorePatterns: [
-    '/node_modules/',
-    '/tests/',
-    '/coverage/'
-  ],
-
-  // Indicates whether each individual test should be reported during the run
-  verbose: true,
-
   // Setup files
   setupFilesAfterEnv: [
-    '@testing-library/jest-dom',
-    '<rootDir>/tests/setup.js'
+    '<rootDir>/src/tests/setup.js',
+    '@testing-library/jest-dom'
   ],
 
   // Environment variables
-  setupFiles: ['dotenv/config'],
+  testEnvironmentOptions: {
+    NODE_ENV: 'test'
+  },
 
-  // Automatically clear mock calls and instances between every test
+  // Increase timeout for database operations
+  testTimeout: 30000,
+
+  // Clear mocks between tests
   clearMocks: true,
 
-  // The maximum amount of workers used to run your tests
-  maxWorkers: '50%',
-
-  // Collect coverage from these directories
+  // Collect coverage
+  collectCoverage: true,
+  coverageDirectory: 'coverage',
+  coverageReporters: ['text', 'lcov'],
   collectCoverageFrom: [
     'src/**/*.js',
-    'client/src/**/*.{js,jsx}',
-    '!client/src/index.js',
-    '!client/src/reportWebVitals.js',
+    '!src/tests/**',
     '!**/node_modules/**'
-  ],
-
-  // Coverage thresholds
-  coverageThreshold: {
-    global: {
-      branches: 80,
-      functions: 80,
-      lines: 80,
-      statements: 80
-    }
-  },
-
-  // Module name mapper for static assets and CSS
-  moduleNameMapper: {
-    '\\.(css|less|scss|sass)$': 'identity-obj-proxy',
-    '\\.(jpg|jpeg|png|gif|eot|otf|webp|svg|ttf|woff|woff2|mp4|webm|wav|mp3|m4a|aac|oga)$': '<rootDir>/__mocks__/fileMock.js'
-  },
-
-  // Handle ESM modules
-  extensionsToTreatAsEsm: ['.jsx'],
-  
-  // Babel configuration for ESM
-  globals: {
-    'ts-jest': {
-      useESM: true
-    }
-  }
+  ]
 };

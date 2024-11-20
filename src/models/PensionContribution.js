@@ -12,28 +12,27 @@ PensionContribution.init({
   employeeId: {
     type: DataTypes.UUID,
     allowNull: false,
+    field: 'employee_id',
     references: {
-      model: 'Employees',
-      key: 'id'
-    }
-  },
-  payrollId: {
-    type: DataTypes.UUID,
-    allowNull: false,
-    references: {
-      model: 'Payrolls',
+      model: 'employees',
       key: 'id'
     }
   },
   contributionDate: {
-    type: DataTypes.DATE,
-    allowNull: false
+    type: DataTypes.DATEONLY,
+    allowNull: false,
+    field: 'contribution_date',
+    validate: {
+      isDate: true,
+      isBefore: new Date().toISOString()
+    }
   },
   amount: {
     type: DataTypes.DECIMAL(12, 2),
     allowNull: false,
     validate: {
-      min: 0
+      min: 0,
+      isDecimal: true
     }
   },
   type: {
@@ -44,36 +43,62 @@ PensionContribution.init({
     type: DataTypes.ENUM('PENDING', 'PROCESSED', 'FAILED'),
     defaultValue: 'PENDING'
   },
+  processingDate: {
+    type: DataTypes.DATE,
+    field: 'processing_date'
+  },
   notes: {
     type: DataTypes.TEXT
+  },
+  createdAt: {
+    type: DataTypes.DATE,
+    field: 'created_at'
+  },
+  updatedAt: {
+    type: DataTypes.DATE,
+    field: 'updated_at'
   }
 }, {
   sequelize,
   modelName: 'PensionContribution',
   tableName: 'pension_contributions',
   timestamps: true,
+  underscored: true,
   indexes: [
     {
-      fields: ['employeeId']
+      fields: ['employee_id']
     },
     {
-      fields: ['payrollId']
+      fields: ['contribution_date']
     },
     {
-      fields: ['contributionDate']
+      fields: ['status']
+    },
+    {
+      fields: ['type']
+    },
+    {
+      fields: ['processing_date']
+    },
+    // Composite indexes for common queries
+    {
+      fields: ['employee_id', 'contribution_date']
+    },
+    {
+      fields: ['employee_id', 'status']
     }
-  ]
+  ],
+  validate: {
+    validateDates() {
+      if (this.processingDate && this.contributionDate) {
+        if (new Date(this.processingDate) < new Date(this.contributionDate)) {
+          throw new Error('Processing date cannot be before contribution date');
+        }
+      }
+    }
+  }
 });
 
-PensionContribution.associate = (models) => {
-  PensionContribution.belongsTo(models.Employee, {
-    foreignKey: 'employeeId',
-    as: 'employee'
-  });
-  PensionContribution.belongsTo(models.Payroll, {
-    foreignKey: 'payrollId',
-    as: 'payroll'
-  });
-};
+// Removing the associate method since associations are defined in models/index.js
 
 module.exports = PensionContribution;

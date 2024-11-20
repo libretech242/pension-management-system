@@ -9,44 +9,44 @@ Payroll.init({
     defaultValue: DataTypes.UUIDV4,
     primaryKey: true
   },
-  employeeId: {
+  employee_id: {
     type: DataTypes.UUID,
     allowNull: false,
     references: {
-      model: 'Employees',
+      model: 'employees',
       key: 'id'
     }
   },
-  payPeriodStart: {
+  pay_period_start: {
     type: DataTypes.DATE,
     allowNull: false
   },
-  payPeriodEnd: {
+  pay_period_end: {
     type: DataTypes.DATE,
     allowNull: false
   },
-  grossSalary: {
+  gross_salary: {
     type: DataTypes.DECIMAL(12, 2),
     allowNull: false,
     validate: {
       min: 0
     }
   },
-  netSalary: {
+  net_salary: {
     type: DataTypes.DECIMAL(12, 2),
     allowNull: false,
     validate: {
       min: 0
     }
   },
-  pensionContribution: {
+  pension_contribution: {
     type: DataTypes.DECIMAL(12, 2),
     allowNull: false,
     validate: {
       min: 0
     }
   },
-  otherDeductions: {
+  other_deductions: {
     type: DataTypes.DECIMAL(12, 2),
     defaultValue: 0,
     validate: {
@@ -57,7 +57,7 @@ Payroll.init({
     type: DataTypes.ENUM('DRAFT', 'PROCESSED', 'PAID'),
     defaultValue: 'DRAFT'
   },
-  processedAt: {
+  processed_at: {
     type: DataTypes.DATE
   },
   notes: {
@@ -68,25 +68,15 @@ Payroll.init({
   modelName: 'Payroll',
   tableName: 'payrolls',
   timestamps: true,
+  underscored: true,
   indexes: [
     {
-      fields: ['employeeId']
+      fields: ['employee_id']
     },
     {
-      fields: ['payPeriodStart', 'payPeriodEnd']
+      fields: ['pay_period_start', 'pay_period_end']
     }
   ]
 });
-
-Payroll.associate = (models) => {
-  Payroll.belongsTo(models.Employee, {
-    foreignKey: 'employeeId',
-    as: 'employee'
-  });
-  Payroll.hasMany(models.PensionContribution, {
-    foreignKey: 'payrollId',
-    as: 'contributions'
-  });
-};
 
 module.exports = Payroll;

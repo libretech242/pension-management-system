@@ -22,7 +22,7 @@ Permission.init({
     allowNull: false
   },
   action: {
-    type: DataTypes.ENUM('CREATE', 'READ', 'UPDATE', 'DELETE', 'MANAGE'),
+    type: DataTypes.ENUM('CREATE', 'READ', 'UPDATE', 'DELETE', 'MANAGE', 'VIEW'),
     allowNull: false
   },
   conditions: {
