@@ -122,10 +122,54 @@ const validateDateRange = [
   }
 ];
 
+// Validation middleware for pension contribution
+const validatePensionContribution = [
+  body('employeeId')
+    .notEmpty()
+    .withMessage('Employee ID is required')
+    .isUUID()
+    .withMessage('Invalid employee ID format'),
+  body('amount')
+    .notEmpty()
+    .withMessage('Amount is required')
+    .isFloat({ min: 0 })
+    .withMessage('Amount must be a positive number'),
+  body('contributionDate')
+    .notEmpty()
+    .withMessage('Contribution date is required')
+    .isISO8601()
+    .withMessage('Contribution date must be a valid ISO 8601 date')
+    .custom((value) => {
+      if (!isValid(parseISO(value))) {
+        throw new Error('Invalid contribution date');
+      }
+      if (isAfter(parseISO(value), new Date())) {
+        throw new Error('Contribution date cannot be in the future');
+      }
+      return true;
+    }),
+  body('contributionType')
+    .optional()
+    .isIn(['regular', 'additional', 'employer'])
+    .withMessage('Invalid contribution type'),
+  body('payrollId')
+    .optional()
+    .isUUID()
+    .withMessage('Invalid payroll ID format'),
+  (req, res, next) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
+    next();
+  }
+];
+
 module.exports = {
   validateLogin,
   validateRegistration,
   validatePasswordChange,
   validateEmployee,
-  validateDateRange
+  validateDateRange,
+  validatePensionContribution
 };

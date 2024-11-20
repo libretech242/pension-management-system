@@ -1,46 +1,45 @@
 const multer = require('multer');
 const path = require('path');
+const fs = require('fs');
 const logger = require('../utils/logger');
 
-// Configure multer for file upload
+// Ensure uploads directory exists
+const uploadsDir = path.join(process.cwd(), 'uploads');
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir, { recursive: true });
+}
+
+// Configure multer storage
 const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, 'uploads/');
+  destination: function (req, file, cb) {
+    cb(null, uploadsDir);
   },
-  filename: (req, file, cb) => {
-    const uniqueSuffix = `${Date.now()}-${Math.round(Math.random() * 1E9)}`;
-    const filename = `${file.fieldname}-${uniqueSuffix}${path.extname(file.originalname)}`;
-    logger.debug('Generating filename for upload:', { originalName: file.originalname, generatedName: filename });
-    cb(null, filename);
-  },
+  filename: function (req, file, cb) {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname));
+  }
 });
 
-// File filter to accept only CSV and Excel files
-const fileFilter = (req, file, cb) => {
-  const allowedMimeTypes = [
-    'text/csv',
-    'application/vnd.ms-excel',
-    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-  ];
-
-  if (allowedMimeTypes.includes(file.mimetype)) {
-    logger.debug('File type accepted:', { mimetype: file.mimetype });
-    cb(null, true);
-  } else {
-    logger.warn('Invalid file type rejected:', { mimetype: file.mimetype });
-    cb(new Error('Invalid file type. Only CSV and Excel files are allowed.'), false);
-  }
-};
-
-// Create multer instance with configuration
+// Configure multer upload
 const upload = multer({
-  storage,
-  fileFilter,
+  storage: storage,
   limits: {
-    fileSize: 5 * 1024 * 1024, // 5MB limit
-    files: 1
+    fileSize: 5 * 1024 * 1024 // 5MB limit
+  },
+  fileFilter: function (req, file, cb) {
+    const allowedMimes = [
+      'text/csv',
+      'application/vnd.ms-excel',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    ];
+    
+    if (allowedMimes.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error('Invalid file type. Only CSV and Excel files are allowed.'));
+    }
   }
 });
 
-// Export configured multer instance
+// Export the upload middleware
 module.exports = upload;
