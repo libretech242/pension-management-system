@@ -1,15 +1,78 @@
 const express = require('express');
 const router = express.Router();
+const { Op } = require('sequelize');
 const { Payroll, Employee, PensionContribution } = require('../models');
 const upload = require('../middleware/fileUpload');
 const { processPayrollFile } = require('../utils/fileProcessor');
+const { authenticateToken } = require('../middleware/auth');
+const logger = require('../utils/logger');
+const ApiResponse = require('../utils/apiResponse');
 
-// POST /api/pension/upload - Process pension file
-router.post('/upload', upload.single('file'), async (req, res) => {
+// Ensure uploads directory exists
+const fs = require('fs');
+const path = require('path');
+const uploadsDir = path.join(process.cwd(), 'uploads');
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir, { recursive: true });
+}
+
+// GET /api/pension-uploads - Get all uploads
+router.get('/', authenticateToken, async (req, res, next) => {
+  try {
+    const uploads = await Payroll.findAll({
+      include: [
+        {
+          model: Employee,
+          as: 'employee',
+          attributes: ['firstName', 'lastName', 'nibNumber']
+        },
+        {
+          model: PensionContribution,
+          as: 'pensionContributions'
+        }
+      ],
+      order: [['createdAt', 'DESC']]
+    });
+
+    res.json(ApiResponse.success(uploads));
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * @swagger
+ * /api/pension-uploads/upload:
+ *   post:
+ *     summary: Upload and process pension file
+ *     tags: [Pension Uploads]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               file:
+ *                 type: string
+ *                 format: binary
+ *     responses:
+ *       200:
+ *         description: File processed successfully
+ */
+router.post('/upload', authenticateToken, upload.single('file'), async (req, res, next) => {
   try {
     if (!req.file) {
-      return res.status(400).json({ error: 'No file uploaded' });
+      return res.status(400).json(ApiResponse.error('No file uploaded'));
     }
+
+    logger.info('Processing pension file upload', {
+      filename: req.file.originalname,
+      size: req.file.size,
+      mimetype: req.file.mimetype
+    });
 
     // Process the uploaded file
     const payrollData = await processPayrollFile(req.file.path);
@@ -49,23 +112,69 @@ router.post('/upload', upload.single('file'), async (req, res) => {
 
         return {
           employee: employee.nibNumber,
-          payrollId: payroll.id,
-          contributionAmount
+          payroll: {
+            id: payroll.id,
+            grossSalary: payroll.grossSalary,
+            contributionAmount: payroll.contributionAmount
+          }
         };
       })
     );
 
-    res.status(201).json({
+    // Clean up uploaded file
+    await fs.promises.unlink(req.file.path);
+
+    logger.info('Pension file processed successfully', {
+      recordsProcessed: results.length
+    });
+
+    res.json(ApiResponse.success({
       message: 'Pension file processed successfully',
       results
-    });
+    }));
+
   } catch (error) {
-    res.status(400).json({ error: error.message });
+    // Clean up uploaded file in case of error
+    if (req.file) {
+      try {
+        await fs.promises.unlink(req.file.path);
+      } catch (unlinkError) {
+        logger.error('Error deleting uploaded file:', unlinkError);
+      }
+    }
+    next(error);
   }
 });
 
-// GET /api/pension - Get pension records
-router.get('/', async (req, res) => {
+// GET /api/pension-uploads/:id - Get specific upload
+router.get('/:id', authenticateToken, async (req, res, next) => {
+  try {
+    const upload = await Payroll.findByPk(req.params.id, {
+      include: [
+        {
+          model: Employee,
+          as: 'employee',
+          attributes: ['firstName', 'lastName', 'nibNumber']
+        },
+        {
+          model: PensionContribution,
+          as: 'pensionContributions'
+        }
+      ]
+    });
+
+    if (!upload) {
+      return res.status(404).json(ApiResponse.error('Upload not found', 404));
+    }
+
+    res.json(ApiResponse.success(upload));
+  } catch (error) {
+    next(error);
+  }
+});
+
+// GET /api/pension-uploads/pension - Get pension records
+router.get('/pension', authenticateToken, async (req, res, next) => {
   try {
     const { employeeId, startDate, endDate } = req.query;
     const where = {};
@@ -85,10 +194,24 @@ router.get('/', async (req, res) => {
       ]
     });
 
-    res.json(pensionRecords);
+    res.json(ApiResponse.success(pensionRecords));
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    next(error);
   }
+});
+
+// Error handling middleware
+router.use((err, req, res, next) => {
+  logger.error('Pension upload error:', {
+    error: err.message,
+    stack: process.env.NODE_ENV === 'development' ? err.stack : undefined,
+    path: req.path,
+    method: req.method
+  });
+
+  res.status(err.status || 500).json(ApiResponse.error(
+    process.env.NODE_ENV === 'development' ? err.message : 'An error occurred processing the pension upload'
+  ));
 });
 
 module.exports = router;
