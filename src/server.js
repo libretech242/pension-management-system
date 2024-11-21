@@ -4,6 +4,7 @@ const session = require('express-session');
 const path = require('path');
 const swaggerUi = require('swagger-ui-express');
 require('dotenv').config();
+const cors = require('cors');
 
 const logger = require('./utils/logger');
 const sequelize = require('./config/database');
@@ -17,6 +18,16 @@ const isDevelopment = process.env.NODE_ENV === 'development';
 
 // Apply security middleware
 app.use(securityMiddleware);
+
+// CORS configuration for development
+if (isDevelopment) {
+  app.use(cors({
+    origin: 'http://localhost:3000',
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization']
+  }));
+}
 
 // Session configuration
 app.use(session({
@@ -98,7 +109,7 @@ app.use(errorHandler.errorHandler);
 app.use(errorHandler.notFoundHandler);
 
 // Start server
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {
   logger.info(`Server running on port ${PORT}`);
 });

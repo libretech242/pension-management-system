@@ -1,9 +1,14 @@
 import axios from 'axios';
 
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
+const API_URL = process.env.NODE_ENV === 'development' 
+  ? 'http://localhost:3001/api'
+  : process.env.REACT_APP_API_URL || '/api';
 
-// Debug logging for API URL
-console.log('API URL:', API_URL);
+// Debug logging for development mode only
+if (process.env.NODE_ENV === 'development') {
+  console.log('API URL:', API_URL);
+  console.log('Environment:', process.env.NODE_ENV);
+}
 
 const api = axios.create({
   baseURL: API_URL,
@@ -11,59 +16,51 @@ const api = axios.create({
     'Content-Type': 'application/json',
     'Accept': 'application/json'
   },
-  withCredentials: true // Enable credentials for CORS
+  withCredentials: true
 });
 
-// Debug request interceptor
-api.interceptors.request.use(
-  (config) => {
-    console.log('API Request:', {
-      url: `${config.baseURL}${config.url}`,
-      method: config.method,
-      headers: config.headers,
-      data: config.data,
-      withCredentials: config.withCredentials
-    });
-    
-    const token = localStorage.getItem('token');
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
+// Debug request interceptor (development only)
+if (process.env.NODE_ENV === 'development') {
+  api.interceptors.request.use(
+    (config) => {
+      console.log('API Request:', {
+        url: `${config.baseURL}${config.url}`,
+        method: config.method,
+        headers: config.headers,
+        data: config.data,
+        withCredentials: config.withCredentials
+      });
+      
+      const token = localStorage.getItem('token');
+      if (token) {
+        config.headers.Authorization = `Bearer ${token}`;
+      }
+      return config;
+    },
+    (error) => {
+      console.error('Request Interceptor Error:', {
+        message: error.message,
+        config: error.config,
+        stack: error.stack
+      });
+      return Promise.reject(error);
     }
-    return config;
-  },
-  (error) => {
-    console.error('Request Interceptor Error:', {
-      message: error.message,
-      config: error.config,
-      stack: error.stack
-    });
-    return Promise.reject(error);
-  }
-);
+  );
+}
 
-// Debug response interceptor
+// Response interceptor for better error handling
 api.interceptors.response.use(
-  (response) => {
-    console.log('API Response:', {
-      url: response.config.url,
-      status: response.status,
-      statusText: response.statusText,
-      headers: response.headers,
-      data: response.data
-    });
-    return response;
-  },
+  (response) => response,
   (error) => {
-    console.error('Response Interceptor Error:', {
-      message: error.message,
-      status: error.response?.status,
-      statusText: error.response?.statusText,
-      data: error.response?.data,
-      headers: error.response?.headers,
-      config: error.config
-    });
+    if (process.env.NODE_ENV === 'development') {
+      console.error('API Error:', {
+        status: error.response?.status,
+        data: error.response?.data,
+        config: error.config
+      });
+    }
     
-    // Handle token expiration
+    // Handle session expiration
     if (error.response?.status === 401) {
       localStorage.removeItem('token');
       window.location.href = '/login';
