@@ -5,6 +5,7 @@ const { Op } = require('sequelize');
 const { User, Role, Permission, AuditLog } = require('../models');
 const { logAuthEvent, sendResetPasswordEmail } = require('../utils/auditLogger');
 const logger = require('../utils/logger');
+const ApiResponse = require('../utils/apiResponse');
 
 class AuthController {
   /**
@@ -12,8 +13,19 @@ class AuthController {
    */
   static async login(req, res) {
     try {
-      logger.info('Login attempt:', { email: req.body.email });
+      logger.info('Login attempt received:', { 
+        email: req.body.email,
+        headers: req.headers,
+        origin: req.get('origin'),
+        method: req.method
+      });
+
       const { email, password } = req.body;
+
+      if (!email || !password) {
+        logger.warn('Login failed: Missing credentials');
+        return res.status(400).json(ApiResponse.error('Email and password are required'));
+      }
 
       // Find user with role and permissions
       const user = await User.findOne({
@@ -30,21 +42,19 @@ class AuthController {
 
       if (!user) {
         logger.warn('Login failed: User not found', { email });
-        return res.status(401).json({
-          error: 'Authentication Error',
-          message: 'Invalid email or password'
-        });
+        return res.status(401).json(ApiResponse.error('Invalid email or password'));
       }
 
+      logger.info('User found, verifying password');
+
       // Verify password
-      const validPassword = await bcrypt.compare(password, user.password);
+      const validPassword = await bcrypt.compare(password, user.password_hash);
       if (!validPassword) {
         logger.warn('Login failed: Invalid password', { email });
-        return res.status(401).json({
-          error: 'Authentication Error',
-          message: 'Invalid email or password'
-        });
+        return res.status(401).json(ApiResponse.error('Invalid email or password'));
       }
+
+      logger.info('Password verified, generating token');
 
       // Generate JWT token
       const token = jwt.sign(
@@ -55,30 +65,34 @@ class AuthController {
           permissions: user.role.Permissions.map(p => p.name)
         },
         process.env.JWT_SECRET,
-        { expiresIn: '24h' }
+        { expiresIn: process.env.JWT_EXPIRATION || '24h' }
       );
 
       // Log successful login
       await logAuthEvent('login', user.id, true, 'Login successful');
 
-      res.json({
+      logger.info('Login successful, sending response');
+
+      return res.json(ApiResponse.success({
         token,
         user: {
           id: user.id,
           email: user.email,
-          firstName: user.firstName,
-          lastName: user.lastName,
+          firstName: user.first_name,
+          lastName: user.last_name,
           role: user.role.name,
           permissions: user.role.Permissions.map(p => p.name)
         }
-      });
+      }));
 
     } catch (error) {
-      logger.error('Login error:', error);
-      res.status(500).json({
-        error: 'Server Error',
-        message: 'An error occurred during login'
+      logger.error('Login error:', {
+        error: error.message,
+        stack: error.stack,
+        body: req.body,
+        headers: req.headers
       });
+      return res.status(500).json(ApiResponse.error('An error occurred during login'));
     }
   }
 
@@ -92,11 +106,10 @@ class AuthController {
       // Check if user already exists
       const existingUser = await User.findOne({ where: { email: email.toLowerCase() } });
       if (existingUser) {
-        return res.status(400).json({
-          error: 'Registration Error',
-          message: 'Email already registered'
-        });
+        return res.status(400).json(ApiResponse.error('Email already registered'));
       }
+
+      logger.info('User does not exist, creating new user');
 
       // Hash password
       const salt = await bcrypt.genSalt(10);
@@ -105,31 +118,35 @@ class AuthController {
       // Create user
       const user = await User.create({
         email: email.toLowerCase(),
-        password: hashedPassword,
-        firstName,
-        lastName,
+        password_hash: hashedPassword,
+        first_name: firstName,
+        last_name: lastName,
         roleId
       });
+
+      logger.info('User created, logging registration');
 
       // Log registration
       await logAuthEvent('register', user.id, true, 'Registration successful');
 
-      res.status(201).json({
+      res.status(201).json(ApiResponse.success({
         message: 'Registration successful',
         user: {
           id: user.id,
           email: user.email,
-          firstName: user.firstName,
-          lastName: user.lastName
+          firstName: user.first_name,
+          lastName: user.last_name
         }
-      });
+      }));
 
     } catch (error) {
-      logger.error('Registration error:', error);
-      res.status(500).json({
-        error: 'Server Error',
-        message: 'An error occurred during registration'
+      logger.error('Registration error:', {
+        error: error.message,
+        stack: error.stack,
+        body: req.body,
+        headers: req.headers
       });
+      res.status(500).json(ApiResponse.error('An error occurred during registration'));
     }
   }
 
@@ -143,41 +160,43 @@ class AuthController {
 
       const user = await User.findByPk(userId);
       if (!user) {
-        return res.status(404).json({
-          error: 'Not Found',
-          message: 'User not found'
-        });
+        return res.status(404).json(ApiResponse.error('User not found'));
       }
 
+      logger.info('User found, verifying current password');
+
       // Verify current password
-      const validPassword = await bcrypt.compare(currentPassword, user.password);
+      const validPassword = await bcrypt.compare(currentPassword, user.password_hash);
       if (!validPassword) {
-        return res.status(401).json({
-          error: 'Authentication Error',
-          message: 'Current password is incorrect'
-        });
+        return res.status(401).json(ApiResponse.error('Current password is incorrect'));
       }
+
+      logger.info('Current password verified, hashing new password');
 
       // Hash new password
       const salt = await bcrypt.genSalt(10);
       const hashedPassword = await bcrypt.hash(newPassword, salt);
 
       // Update password
-      await user.update({ password: hashedPassword });
+      await user.update({ password_hash: hashedPassword });
+
+      logger.info('Password updated, logging password change');
 
       // Log password change
       await logAuthEvent('changePassword', user.id, true, 'Password changed successfully');
 
-      res.json({
+      res.json(ApiResponse.success({
         message: 'Password changed successfully'
-      });
+      }));
 
     } catch (error) {
-      logger.error('Change password error:', error);
-      res.status(500).json({
-        error: 'Server Error',
-        message: 'An error occurred while changing password'
+      logger.error('Change password error:', {
+        error: error.message,
+        stack: error.stack,
+        body: req.body,
+        headers: req.headers
       });
+      res.status(500).json(ApiResponse.error('An error occurred while changing password'));
     }
   }
 
@@ -196,33 +215,34 @@ class AuthController {
             through: { attributes: [] }
           }]
         }],
-        attributes: { exclude: ['password'] }
+        attributes: { exclude: ['password_hash'] }
       });
 
       if (!user) {
-        return res.status(404).json({
-          error: 'Not Found',
-          message: 'User not found'
-        });
+        return res.status(404).json(ApiResponse.error('User not found'));
       }
 
-      res.json({
+      logger.info('User found, sending profile details');
+
+      res.json(ApiResponse.success({
         user: {
           id: user.id,
           email: user.email,
-          firstName: user.firstName,
-          lastName: user.lastName,
+          firstName: user.first_name,
+          lastName: user.last_name,
           role: user.role.name,
           permissions: user.role.Permissions.map(p => p.name)
         }
-      });
+      }));
 
     } catch (error) {
-      logger.error('Get profile error:', error);
-      res.status(500).json({
-        error: 'Server Error',
-        message: 'An error occurred while fetching profile'
+      logger.error('Get profile error:', {
+        error: error.message,
+        stack: error.stack,
+        body: req.body,
+        headers: req.headers
       });
+      res.status(500).json(ApiResponse.error('An error occurred while fetching profile'));
     }
   }
 
@@ -235,11 +255,10 @@ class AuthController {
 
       const user = await User.findOne({ where: { email: email.toLowerCase() } });
       if (!user) {
-        return res.status(404).json({
-          error: 'Not Found',
-          message: 'User not found'
-        });
+        return res.status(404).json(ApiResponse.error('User not found'));
       }
+
+      logger.info('User found, generating reset token');
 
       // Generate reset token
       const resetToken = crypto.randomBytes(32).toString('hex');
@@ -251,22 +270,26 @@ class AuthController {
         resetTokenExpiry
       });
 
+      logger.info('Reset token saved, sending reset email');
+
       // Send reset email
       await sendResetPasswordEmail(user.email, resetToken);
 
       // Log password reset request
       await logAuthEvent('forgotPassword', user.id, true, 'Password reset requested');
 
-      res.json({
+      res.json(ApiResponse.success({
         message: 'Password reset instructions sent to email'
-      });
+      }));
 
     } catch (error) {
-      logger.error('Forgot password error:', error);
-      res.status(500).json({
-        error: 'Server Error',
-        message: 'An error occurred while processing password reset'
+      logger.error('Forgot password error:', {
+        error: error.message,
+        stack: error.stack,
+        body: req.body,
+        headers: req.headers
       });
+      res.status(500).json(ApiResponse.error('An error occurred while processing password reset'));
     }
   }
 
@@ -287,11 +310,10 @@ class AuthController {
       });
 
       if (!user) {
-        return res.status(400).json({
-          error: 'Invalid Token',
-          message: 'Password reset token is invalid or has expired'
-        });
+        return res.status(400).json(ApiResponse.error('Password reset token is invalid or has expired'));
       }
+
+      logger.info('User found, hashing new password');
 
       // Hash new password
       const salt = await bcrypt.genSalt(10);
@@ -299,24 +321,28 @@ class AuthController {
 
       // Update password and clear reset token
       await user.update({
-        password: hashedPassword,
+        password_hash: hashedPassword,
         resetToken: null,
         resetTokenExpiry: null
       });
 
+      logger.info('Password updated, logging password reset');
+
       // Log password reset
       await logAuthEvent('resetPassword', user.id, true, 'Password reset successful');
 
-      res.json({
+      res.json(ApiResponse.success({
         message: 'Password has been reset successfully'
-      });
+      }));
 
     } catch (error) {
-      logger.error('Reset password error:', error);
-      res.status(500).json({
-        error: 'Server Error',
-        message: 'An error occurred while resetting password'
+      logger.error('Reset password error:', {
+        error: error.message,
+        stack: error.stack,
+        body: req.body,
+        headers: req.headers
       });
+      res.status(500).json(ApiResponse.error('An error occurred while resetting password'));
     }
   }
 
@@ -330,37 +356,40 @@ class AuthController {
 
       const user = await User.findByPk(userId);
       if (!user) {
-        return res.status(404).json({
-          error: 'Not Found',
-          message: 'User not found'
-        });
+        return res.status(404).json(ApiResponse.error('User not found'));
       }
+
+      logger.info('User found, updating profile');
 
       // Update profile
       await user.update({
-        firstName,
-        lastName
+        first_name: firstName,
+        last_name: lastName
       });
+
+      logger.info('Profile updated, logging profile update');
 
       // Log profile update
       await logAuthEvent('updateProfile', user.id, true, 'Profile updated successfully');
 
-      res.json({
+      res.json(ApiResponse.success({
         message: 'Profile updated successfully',
         user: {
           id: user.id,
           email: user.email,
-          firstName: user.firstName,
-          lastName: user.lastName
+          firstName: user.first_name,
+          lastName: user.last_name
         }
-      });
+      }));
 
     } catch (error) {
-      logger.error('Update profile error:', error);
-      res.status(500).json({
-        error: 'Server Error',
-        message: 'An error occurred while updating profile'
+      logger.error('Update profile error:', {
+        error: error.message,
+        stack: error.stack,
+        body: req.body,
+        headers: req.headers
       });
+      res.status(500).json(ApiResponse.error('An error occurred while updating profile'));
     }
   }
 
@@ -371,19 +400,23 @@ class AuthController {
     try {
       const userId = req.user.id;
 
+      logger.info('Logging out user');
+
       // Log logout
       await logAuthEvent('logout', userId, true, 'Logout successful');
 
-      res.json({
+      res.json(ApiResponse.success({
         message: 'Logged out successfully'
-      });
+      }));
 
     } catch (error) {
-      logger.error('Logout error:', error);
-      res.status(500).json({
-        error: 'Server Error',
-        message: 'An error occurred during logout'
+      logger.error('Logout error:', {
+        error: error.message,
+        stack: error.stack,
+        body: req.body,
+        headers: req.headers
       });
+      res.status(500).json(ApiResponse.error('An error occurred during logout'));
     }
   }
 
@@ -397,26 +430,30 @@ class AuthController {
           model: Role,
           include: [Permission]
         }],
-        attributes: { exclude: ['password'] }
+        attributes: { exclude: ['password_hash'] }
       });
 
-      res.json({
+      logger.info('Users fetched, sending response');
+
+      res.json(ApiResponse.success({
         users: users.map(user => ({
           id: user.id,
           email: user.email,
-          firstName: user.firstName,
-          lastName: user.lastName,
+          firstName: user.first_name,
+          lastName: user.last_name,
           role: user.role.name,
           permissions: user.role.Permissions.map(p => p.name)
         }))
-      });
+      }));
 
     } catch (error) {
-      logger.error('List users error:', error);
-      res.status(500).json({
-        error: 'Server Error',
-        message: 'An error occurred while fetching users'
+      logger.error('List users error:', {
+        error: error.message,
+        stack: error.stack,
+        body: req.body,
+        headers: req.headers
       });
+      res.status(500).json(ApiResponse.error('An error occurred while fetching users'));
     }
   }
 
@@ -428,20 +465,24 @@ class AuthController {
       const logs = await AuditLog.findAll({
         include: [{
           model: User,
-          attributes: ['email', 'firstName', 'lastName']
+          attributes: ['email', 'first_name', 'last_name']
         }],
         order: [['createdAt', 'DESC']],
         limit: 100
       });
 
-      res.json({ logs });
+      logger.info('Audit logs fetched, sending response');
+
+      res.json(ApiResponse.success({ logs }));
 
     } catch (error) {
-      logger.error('Get audit logs error:', error);
-      res.status(500).json({
-        error: 'Server Error',
-        message: 'An error occurred while fetching audit logs'
+      logger.error('Get audit logs error:', {
+        error: error.message,
+        stack: error.stack,
+        body: req.body,
+        headers: req.headers
       });
+      res.status(500).json(ApiResponse.error('An error occurred while fetching audit logs'));
     }
   }
 }

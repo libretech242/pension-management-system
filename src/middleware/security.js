@@ -22,61 +22,40 @@ const csrfProtection = csrf({
 
 // CORS configuration
 const corsOptions = {
-  origin: process.env.NODE_ENV === 'development' ? 'http://localhost:3000' : process.env.FRONTEND_URL,
+  origin: process.env.NODE_ENV === 'development' 
+    ? ['http://localhost:3000', 'http://localhost:5000'] 
+    : process.env.FRONTEND_URL,
   credentials: true,
-  optionsSuccessStatus: 200
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
+  exposedHeaders: ['Content-Range', 'X-Content-Range'],
+  optionsSuccessStatus: 200,
+  preflightContinue: false
 };
 
 // Security middleware configuration
 const securityMiddleware = [
-  // Enable CORS
   cors(corsOptions),
-  
-  // Basic security headers
-  helmet(),
-  
-  // Rate limiting
-  limiter,
-  
-  // Data sanitization against XSS
+  helmet({
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        styleSrc: ["'self'", "'unsafe-inline'"],
+        scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
+        imgSrc: ["'self'", 'data:', 'blob:'],
+        connectSrc: ["'self'", 'http://localhost:5000', 'http://localhost:3000'],
+        fontSrc: ["'self'", 'data:'],
+        objectSrc: ["'none'"],
+        mediaSrc: ["'self'"],
+        frameSrc: ["'self'"],
+      },
+    },
+    crossOriginEmbedderPolicy: false,
+    crossOriginResourcePolicy: { policy: "cross-origin" }
+  }),
   xss(),
-  
-  // Data sanitization against NoSQL query injection
   mongoSanitize(),
-  
-  // Content security policy
-  helmet.contentSecurityPolicy({
-    directives: {
-      defaultSrc: ["'self'"],
-      scriptSrc: ["'self'", "'unsafe-inline'"],
-      styleSrc: ["'self'", "'unsafe-inline'"],
-      imgSrc: ["'self'", 'data:', 'https:'],
-      connectSrc: ["'self'"],
-      fontSrc: ["'self'"],
-      objectSrc: ["'none'"],
-      mediaSrc: ["'self'"],
-      frameSrc: ["'none'"]
-    }
-  }),
-  
-  // Prevent clickjacking
-  helmet.frameguard({ action: 'deny' }),
-  
-  // HTTP Strict Transport Security
-  helmet.hsts({
-    maxAge: 31536000,
-    includeSubDomains: true,
-    preload: true
-  }),
-  
-  // Disable X-Powered-By header
-  helmet.hidePoweredBy(),
-  
-  // Prevent MIME type sniffing
-  helmet.noSniff(),
-  
-  // XSS protection
-  helmet.xssFilter()
+  limiter
 ];
 
 module.exports = {
