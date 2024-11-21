@@ -6,46 +6,41 @@ on:
   pull_request:
     branches: [ main ]
 
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
 jobs:
   test:
     runs-on: ubuntu-latest
     
-    services:
-      postgres:
-        image: postgres:14-alpine
-        env:
-          POSTGRES_USER: test_user
-          POSTGRES_PASSWORD: test_password
-          POSTGRES_DB: test_db
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
     
     - name: Set up Node.js
-      uses: actions/setup-node@v2
+      uses: actions/setup-node@v3
       with:
-        node-version: '16'
+        node-version: '20'
+        cache: 'npm'
         
     - name: Install Dependencies
       run: |
         npm ci
         cd client && npm ci
         
+    - name: Setup Test Database
+      env:
+        DATABASE_URL: ${{ secrets.NEON_TEST_DATABASE_URL }}
+        NODE_ENV: test
+      run: |
+        npm run db:migrate
+        
     - name: Run Backend Tests
       env:
-        DB_HOST: localhost
-        DB_PORT: 5432
-        DB_USER: test_user
-        DB_PASSWORD: test_password
-        DB_NAME: test_db
+        DATABASE_URL: ${{ secrets.NEON_TEST_DATABASE_URL }}
+        NODE_ENV: test
         JWT_SECRET: test_secret
+        SESSION_SECRET: test_session_secret
       run: npm test
         
     - name: Run Frontend Tests
@@ -54,44 +49,42 @@ jobs:
     - name: Build Frontend
       run: cd client && npm run build
 
-  deploy:
+  build-and-push:
     needs: test
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main'
+    permissions:
+      contents: read
+      packages: write
     
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
     
-    - name: Configure AWS credentials
-      uses: aws-actions/configure-aws-credentials@v1
+    - name: Log in to GitHub Container Registry
+      uses: docker/login-action@v2
       with:
-        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        aws-region: us-east-1
+        registry: ${{ env.REGISTRY }}
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
         
-    - name: Login to Amazon ECR
-      id: login-ecr
-      uses: aws-actions/amazon-ecr-login@v1
-      
-    - name: Build and push Docker images
-      env:
-        ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-        ECR_REPOSITORY: pension-management
-        IMAGE_TAG: ${{ github.sha }}
-      run: |
-        docker-compose build
-        docker tag pension-management-backend:latest $ECR_REGISTRY/$ECR_REPOSITORY:backend-$IMAGE_TAG
-        docker tag pension-management-frontend:latest $ECR_REGISTRY/$ECR_REPOSITORY:frontend-$IMAGE_TAG
-        docker push $ECR_REGISTRY/$ECR_REPOSITORY:backend-$IMAGE_TAG
-        docker push $ECR_REGISTRY/$ECR_REPOSITORY:frontend-$IMAGE_TAG
-        
-    - name: Deploy to EC2
-      uses: appleboy/ssh-action@master
+    - name: Extract metadata for Docker
+      id: meta
+      uses: docker/metadata-action@v4
       with:
-        host: ${{ secrets.EC2_HOST }}
-        username: ${{ secrets.EC2_USERNAME }}
-        key: ${{ secrets.EC2_SSH_KEY }}
-        script: |
-          cd /opt/pension-management
-          docker-compose pull
-          docker-compose up -d
+        images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+        
+    - name: Build and push backend Docker image
+      uses: docker/build-push-action@v4
+      with:
+        context: .
+        push: true
+        tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-backend:latest
+        labels: ${{ steps.meta.outputs.labels }}
+        
+    - name: Build and push frontend Docker image
+      uses: docker/build-push-action@v4
+      with:
+        context: ./client
+        push: true
+        tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-frontend:latest
+        labels: ${{ steps.meta.outputs.labels }}

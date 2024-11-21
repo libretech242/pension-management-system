@@ -6,12 +6,30 @@
   "scripts": {
     "start": "node src/server.js",
     "dev": "nodemon src/server.js",
-    "test": "jest --coverage",
-    "lint": "eslint src/",
-    "format": "prettier --write \"src/**/*.js\"",
+    "test": "jest --detectOpenHandles --forceExit",
+    "db:migrate": "sequelize-cli db:migrate",
+    "db:migrate:undo": "sequelize-cli db:migrate:undo",
+    "db:migrate:undo:all": "sequelize-cli db:migrate:undo:all",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "build": "echo 'No build step required for backend'",
     "db:backup": "node src/scripts/dbBackup.js",
     "db:monitor": "node src/scripts/dbMonitor.js",
-    "db:maintenance": "node src/scripts/dbMaintenance.js"
+    "db:maintenance": "node src/scripts/dbMaintenance.js",
+    "format": "prettier --write \"src/**/*.js\""
+  },
+  "jest": {
+    "testEnvironment": "node",
+    "setupFiles": ["<rootDir>/jest.setup.js"],
+    "testMatch": ["**/__tests__/**/*.test.js"],
+    "collectCoverage": true,
+    "coverageDirectory": "coverage",
+    "coverageReporters": ["text", "lcov"],
+    "coveragePathIgnorePatterns": [
+      "/node_modules/",
+      "/coverage/",
+      "/client/"
+    ]
   },
   "dependencies": {
     "@sentry/integrations": "^7.114.0",
