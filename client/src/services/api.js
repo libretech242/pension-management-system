@@ -2,18 +2,29 @@ import axios from 'axios';
 
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
 
+// Debug logging for API URL
+console.log('API URL:', API_URL);
+
 const api = axios.create({
   baseURL: API_URL,
   headers: {
     'Content-Type': 'application/json',
     'Accept': 'application/json'
   },
-  withCredentials: false // Changed to false since we're using token-based auth
+  withCredentials: true // Enable credentials for CORS
 });
 
-// Add request interceptor for authentication
+// Debug request interceptor
 api.interceptors.request.use(
   (config) => {
+    console.log('API Request:', {
+      url: `${config.baseURL}${config.url}`,
+      method: config.method,
+      headers: config.headers,
+      data: config.data,
+      withCredentials: config.withCredentials
+    });
+    
     const token = localStorage.getItem('token');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
@@ -21,32 +32,43 @@ api.interceptors.request.use(
     return config;
   },
   (error) => {
-    console.error('API Request Error:', error);
+    console.error('Request Interceptor Error:', {
+      message: error.message,
+      config: error.config,
+      stack: error.stack
+    });
     return Promise.reject(error);
   }
 );
 
-// Add response interceptor for error handling
+// Debug response interceptor
 api.interceptors.response.use(
-  (response) => response,
-  async (error) => {
-    const originalRequest = error.config;
-
-    // Handle network errors
-    if (error.message === 'Network Error') {
-      console.error('Network Error - Please check your connection or the server status');
-      return Promise.reject(new Error('Unable to connect to the server. Please check your connection.'));
+  (response) => {
+    console.log('API Response:', {
+      url: response.config.url,
+      status: response.status,
+      statusText: response.statusText,
+      headers: response.headers,
+      data: response.data
+    });
+    return response;
+  },
+  (error) => {
+    console.error('Response Interceptor Error:', {
+      message: error.message,
+      status: error.response?.status,
+      statusText: error.response?.statusText,
+      data: error.response?.data,
+      headers: error.response?.headers,
+      config: error.config
+    });
+    
+    // Handle token expiration
+    if (error.response?.status === 401) {
+      localStorage.removeItem('token');
+      window.location.href = '/login';
     }
-
-    // Handle 401 errors
-    if (error.response?.status === 401 && !originalRequest._retry) {
-      originalRequest._retry = true;
-      localStorage.removeItem('token'); // Clear invalid token
-      window.location.href = '/login'; // Redirect to login
-      return Promise.reject(error);
-    }
-
-    console.error('API Response Error:', error.response?.data || error.message);
+    
     return Promise.reject(error);
   }
 );
